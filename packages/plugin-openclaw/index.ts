@@ -4,6 +4,8 @@
  */
 
 import { a2aPlugin, setA2ARuntime, getA2AConnectionManager } from './src/channel.js';
+import { readFileSync } from 'fs';
+import { basename, extname } from 'path';
 
 // Minimal plugin interface
 interface ClawdbotPluginApi {
@@ -44,7 +46,11 @@ const plugin = {
           },
           message: {
             type: 'string',
-            description: 'Message to send (for send action)',
+            description: 'Text message to send (for send action)',
+          },
+          image: {
+            type: 'string',
+            description: 'Path to image file to send (for send action)',
           },
         },
         required: ['action'],
@@ -53,6 +59,7 @@ const plugin = {
         const action = params.action as string;
         const agentId = params.agentId as string | undefined;
         const message = params.message as string | undefined;
+        const imagePath = params.image as string | undefined;
         
         const manager = getA2AConnectionManager();
         if (!manager) {
@@ -65,22 +72,53 @@ const plugin = {
         }
 
         if (action === 'send') {
-          if (!agentId || !message) {
-            return { content: [{ type: 'text', text: JSON.stringify({ status: 'error', error: 'agentId and message required for send action' }) }] };
+          if (!agentId || (!message && !imagePath)) {
+            return { content: [{ type: 'text', text: JSON.stringify({ status: 'error', error: 'agentId and (message or image) required for send action' }) }] };
           }
           try {
-            // Use sendViaGopherHole for remote agents (routes through the hub)
-            // Use sendMessage for direct connections
             const isGopherHoleConnected = manager.isGopherHoleConnected();
             const isDirectConnection = manager.isConnected(agentId) && agentId !== 'gopherhole';
             
+            // Build parts array
+            const parts: Array<{ kind: string; text?: string; data?: string; mimeType?: string }> = [];
+            
+            // Add text part if message provided
+            if (message) {
+              parts.push({ kind: 'text', text: message });
+            }
+            
+            // Add image part if image path provided
+            if (imagePath) {
+              try {
+                const imageData = readFileSync(imagePath);
+                const base64Data = imageData.toString('base64');
+                const ext = extname(imagePath).toLowerCase();
+                const mimeTypes: Record<string, string> = {
+                  '.png': 'image/png',
+                  '.jpg': 'image/jpeg',
+                  '.jpeg': 'image/jpeg',
+                  '.gif': 'image/gif',
+                  '.webp': 'image/webp',
+                  '.svg': 'image/svg+xml',
+                };
+                const mimeType = mimeTypes[ext] || 'application/octet-stream';
+                parts.push({ kind: 'image', data: base64Data, mimeType });
+              } catch (imgErr) {
+                return { content: [{ type: 'text', text: JSON.stringify({ status: 'error', error: `Failed to read image: ${(imgErr as Error).message}` }) }] };
+              }
+            }
+            
             let response;
             if (isDirectConnection) {
-              // Direct WebSocket connection to the agent
-              response = await manager.sendMessage(agentId, message);
+              // Direct WebSocket - only supports text for now
+              if (message) {
+                response = await manager.sendMessage(agentId, message);
+              } else {
+                return { content: [{ type: 'text', text: JSON.stringify({ status: 'error', error: 'Direct connections only support text messages' }) }] };
+              }
             } else if (isGopherHoleConnected) {
-              // Route through GopherHole hub
-              response = await manager.sendViaGopherHole(agentId, message);
+              // Route through GopherHole hub with multi-part support
+              response = await manager.sendPartsViaGopherHole(agentId, parts);
             } else {
               return { content: [{ type: 'text', text: JSON.stringify({ status: 'error', error: `Cannot reach agent ${agentId} - no direct connection or GopherHole` }) }] };
             }

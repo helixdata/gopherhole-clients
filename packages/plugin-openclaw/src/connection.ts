@@ -539,6 +539,18 @@ export class A2AConnectionManager {
     text: string,
     contextId?: string
   ): Promise<A2AResponse> {
+    return this.sendPartsViaGopherHole(targetAgentId, [{ kind: 'text', text }], contextId);
+  }
+
+  /**
+   * Send a multi-part message via GopherHole hub
+   * Supports text, images, and other MIME types
+   */
+  async sendPartsViaGopherHole(
+    targetAgentId: string,
+    parts: Array<{ kind: string; text?: string; data?: string; mimeType?: string }>,
+    contextId?: string
+  ): Promise<A2AResponse> {
     const gphConn = this.connections.get('gopherhole');
     if (!gphConn?.connected || !gphConn.ws) {
       throw new Error('GopherHole not connected');
@@ -567,12 +579,12 @@ export class A2AConnectionManager {
         id: taskId,
         to: targetAgentId,
         payload: {
-          parts: [{ kind: 'text', text }],
+          parts,
           ...(contextId ? { contextId } : {}),
         },
       };
 
-      console.log(`[a2a] Sending to ${targetAgentId} via GopherHole: taskId=${taskId}`);
+      console.log(`[a2a] Sending to ${targetAgentId} via GopherHole: taskId=${taskId}, parts=${parts.length}`);
       gphConn.ws!.send(JSON.stringify(msg));
     });
   }
