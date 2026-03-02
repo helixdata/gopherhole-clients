@@ -593,12 +593,33 @@ export class A2AChannel implements Channel {
    * Send a message to a remote agent via GopherHole SDK
    */
   async sendViaGopherHole(targetAgentId: string, text: string, contextId?: string): Promise<AgentResponse> {
+    return this.sendPartsViaGopherHole(targetAgentId, [{ kind: 'text', text }], contextId);
+  }
+
+  /**
+   * Send a multi-part message (text, images, files) to a remote agent via GopherHole SDK
+   */
+  async sendPartsViaGopherHole(
+    targetAgentId: string,
+    parts: Array<{ kind: string; text?: string; data?: string; mimeType?: string }>,
+    contextId?: string
+  ): Promise<AgentResponse> {
     if (!this.gopherholeClient?.connected) {
       throw new Error('GopherHole not connected');
     }
 
-    const task = await this.gopherholeClient.sendText(targetAgentId, text, { contextId });
-    logger.debug({ taskId: task.id, targetAgentId, status: task.status.state }, 'Sent message via GopherHole');
+    const payload: MessagePayload = {
+      role: 'user',
+      parts: parts.map(p => ({
+        kind: p.kind as 'text' | 'file' | 'data',
+        text: p.text,
+        data: p.data,
+        mimeType: p.mimeType,
+      })),
+    };
+
+    const task = await this.gopherholeClient.send(targetAgentId, payload, { contextId });
+    logger.debug({ taskId: task.id, targetAgentId, status: task.status.state, partsCount: parts.length }, 'Sent multi-part message via GopherHole');
     
     // If task already completed (synchronous response)
     if (task.status.state === 'completed' || task.status.state === 'failed') {
