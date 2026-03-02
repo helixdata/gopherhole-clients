@@ -102,7 +102,7 @@ const plugin = {
                   '.svg': 'image/svg+xml',
                 };
                 const mimeType = mimeTypes[ext] || 'application/octet-stream';
-                parts.push({ kind: 'image', data: base64Data, mimeType });
+                parts.push({ kind: 'data', data: base64Data, mimeType });
               } catch (imgErr) {
                 return { content: [{ type: 'text', text: JSON.stringify({ status: 'error', error: `Failed to read image: ${(imgErr as Error).message}` }) }] };
               }

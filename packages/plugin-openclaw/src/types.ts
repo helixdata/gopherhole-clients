@@ -1,6 +1,6 @@
 /**
  * A2A Protocol Types
- * Compatible with MarketClaw's A2A implementation
+ * Compatible with @gopherhole/sdk
  */
 
 export interface A2AMessage {
@@ -9,7 +9,7 @@ export interface A2AMessage {
   contextId?: string;
   from?: string;
   content?: {
-    parts: Array<{ kind: string; text?: string; data?: unknown }>;
+    parts: Array<{ kind: string; text?: string; data?: unknown; mimeType?: string }>;
   };
   status?: 'working' | 'completed' | 'failed' | 'canceled';
   error?: string;
@@ -23,16 +23,6 @@ export interface A2AAgentCard {
   url?: string;
 }
 
-// A2AConnection is defined locally in connection.ts to avoid WebSocket type issues
-
-export interface A2APendingRequest {
-  taskId: string;
-  resolve: (response: A2AResponse) => void;
-  reject: (error: Error) => void;
-  timeout: NodeJS.Timeout;
-  startedAt: number;
-}
-
 export interface A2AResponse {
   text: string;
   status: string;
@@ -43,8 +33,8 @@ export interface A2AChannelConfig {
   enabled?: boolean;
   agentId?: string;        // Our agent ID (default: "clawdbot")
   agentName?: string;      // Display name
-  bridgeUrl?: string;      // A2A bridge/hub URL (ws://...)
-  agents?: Array<{         // Direct agent connections
+  bridgeUrl?: string;      // Legacy: direct bridge URL (ws://...)
+  agents?: Array<{         // Legacy: direct agent connections
     id: string;
     url: string;
     name?: string;
@@ -52,7 +42,8 @@ export interface A2AChannelConfig {
   gopherhole?: {           // GopherHole Agent Hub connection
     enabled?: boolean;
     apiKey: string;
-    hubUrl?: string;       // Default: wss://gopherhole.helixdata.workers.dev/ws
+    hubUrl?: string;       // Default: wss://gopherhole.ai/ws
+    requestTimeoutMs?: number;
   };
   auth?: {
     token?: string;
