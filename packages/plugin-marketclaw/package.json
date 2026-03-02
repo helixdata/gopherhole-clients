@@ -1,0 +1,45 @@
+{
+  "name": "@gopherhole/marketclaw",
+  "version": "0.1.0",
+  "description": "GopherHole A2A channel plugin for MarketClaw - connect your marketing agent to the GopherHole network",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./channel": {
+      "types": "./dist/channel.d.ts",
+      "import": "./dist/channel.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["marketclaw", "gopherhole", "a2a", "agent", "ai", "marketing"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/helixdata/gopherhole.git",
+    "directory": "marketclaw-plugin"
+  },
+  "homepage": "https://gopherhole.ai",
+  "license": "MIT",
+  "dependencies": {
+    "@gopherhole/sdk": "^0.1.4",
+    "pino": "^9.0.0",
+    "uuid": "^10.0.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/uuid": "^10.0.0",
+    "@types/ws": "^8.5.10",
+    "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "marketclaw": "*"
+  }
+}

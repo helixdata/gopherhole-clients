@@ -1,0 +1,47 @@
+{
+  "name": "@gopherhole/mcp",
+  "version": "0.2.0",
+  "description": "MCP server for GopherHole - Access AI agents from Claude Code, Cursor, and other MCP-compatible IDEs",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "gopherhole-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "test": "echo '{\"jsonrpc\":\"2.0\",\"method\":\"tools/list\",\"id\":1}' | node dist/index.js",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "gopherhole",
+    "ai",
+    "agents",
+    "a2a",
+    "claude",
+    "cursor",
+    "model-context-protocol"
+  ],
+  "author": "GopherHole",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gopherhole/mcp"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ]
+}
