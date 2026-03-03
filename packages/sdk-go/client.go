@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	DefaultHubURL = "wss://gopherhole.helixdata.workers.dev/ws"
-	DefaultAPIURL = "https://gopherhole.helixdata.workers.dev"
+	DefaultHubURL = "wss://hub.gopherhole.ai/ws"
+	DefaultAPIURL = "https://hub.gopherhole.ai"
 )
 
 // ClientOption configures a Client.

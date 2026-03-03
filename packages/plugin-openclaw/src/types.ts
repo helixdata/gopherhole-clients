@@ -15,12 +15,22 @@ export interface A2AMessage {
   error?: string;
 }
 
-export interface A2AAgentCard {
+export interface A2ASkill {
   id: string;
   name: string;
   description?: string;
-  skills?: string[];
+  tags?: string[];
+  examples?: string[];
+  inputModes?: string[];
+  outputModes?: string[];
+}
+
+export interface A2AAgentCard {
+  name: string;
+  description?: string;
   url?: string;
+  version?: string;
+  skills?: A2ASkill[];
 }
 
 export interface A2AResponse {
@@ -44,6 +54,7 @@ export interface A2AChannelConfig {
     apiKey: string;
     hubUrl?: string;       // Default: wss://gopherhole.ai/ws
     requestTimeoutMs?: number;
+    agentCard?: A2AAgentCard;  // Custom agent card (overrides defaults)
   };
   auth?: {
     token?: string;

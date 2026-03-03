@@ -168,8 +168,8 @@ type EventMap = {
   taskUpdate: (task: Task) => void;
 };
 
-const DEFAULT_HUB_URL = 'wss://gopherhole.helixdata.workers.dev/ws';
-const DEFAULT_API_URL = 'https://gopherhole.helixdata.workers.dev';
+const DEFAULT_HUB_URL = 'wss://hub.gopherhole.ai/ws';
+const DEFAULT_API_URL = 'https://hub.gopherhole.ai';
 
 export class GopherHole extends EventEmitter<EventMap> {
   private apiKey: string;

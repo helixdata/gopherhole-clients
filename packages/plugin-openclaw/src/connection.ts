@@ -49,9 +49,43 @@ export class A2AConnectionManager {
       maxReconnectAttempts: 20,
       requestTimeout: timeoutMs,
       messageTimeout: timeoutMs,
-      agentCard: {
-        name: this.config.agentName ?? 'Clawdbot',
-        description: 'OpenClaw AI assistant',
+      agentCard: gphConfig.agentCard ?? {
+        name: this.config.agentName ?? 'OpenClaw',
+        description: 'Personal AI assistant with tools, web search, browser control, and various skills',
+        skills: [
+          {
+            id: 'chat',
+            name: 'Chat',
+            description: 'General conversation and Q&A',
+            tags: ['conversation', 'assistant'],
+            inputModes: ['text/plain'],
+            outputModes: ['text/plain', 'text/markdown'],
+          },
+          {
+            id: 'web-search',
+            name: 'Web Search',
+            description: 'Search the web and summarize results',
+            tags: ['search', 'research', 'web'],
+            inputModes: ['text/plain'],
+            outputModes: ['text/plain', 'text/markdown'],
+          },
+          {
+            id: 'coding',
+            name: 'Coding',
+            description: 'Write, review, and debug code',
+            tags: ['code', 'programming', 'development'],
+            inputModes: ['text/plain'],
+            outputModes: ['text/plain', 'text/markdown'],
+          },
+          {
+            id: 'files',
+            name: 'File Operations',
+            description: 'Read, write, and manage files',
+            tags: ['files', 'documents'],
+            inputModes: ['text/plain', 'application/pdf', 'image/*'],
+            outputModes: ['text/plain', 'text/markdown'],
+          },
+        ],
       },
     });
 

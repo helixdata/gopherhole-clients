@@ -29,8 +29,8 @@ from gopherhole.types import (
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_HUB_URL = "wss://gopherhole.helixdata.workers.dev/ws"
-DEFAULT_API_URL = "https://gopherhole.helixdata.workers.dev"
+DEFAULT_HUB_URL = "wss://hub.gopherhole.ai/ws"
+DEFAULT_API_URL = "https://hub.gopherhole.ai"
 
 
 class GopherHole:
