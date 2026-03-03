@@ -8,7 +8,26 @@ import WebSocket from 'ws';
 import { v4 as uuidv4 } from 'uuid';
 import pino from 'pino';
 import { GopherHole, AgentCardConfig, MessagePayload, Task, getTaskResponseText } from '@gopherhole/sdk';
-import { Channel, ChannelConfig, ChannelMessage, ChannelResponse, MessageHandler } from './types.js';
+import { Channel, ChannelConfig, ChannelMessage, ChannelImage, ChannelDocument, ChannelResponse, MessageHandler } from './types.js';
+
+/** Convert MIME type to file extension */
+function mimeToExtension(mimeType: string): string {
+  const map: Record<string, string> = {
+    'application/pdf': '.pdf',
+    'application/msword': '.doc',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+    'application/vnd.ms-excel': '.xls',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+    'application/vnd.ms-powerpoint': '.ppt',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+    'text/plain': '.txt',
+    'text/csv': '.csv',
+    'text/markdown': '.md',
+    'application/json': '.json',
+  };
+  return map[mimeType] || '';
+}
+// Note: Message handler must be set via setMessageHandler() after initialization
 
 const logger = pino({ name: 'a2a-channel' });
 
@@ -114,9 +133,9 @@ export class A2AChannel implements Channel {
       throw new Error('Channel not initialized');
     }
 
-    // Message handler should be set via setMessageHandler() by the consuming application
+    // Note: Message handler should be set via setMessageHandler() before start()
     if (!this.messageHandler) {
-      logger.warn('No message handler set - call setMessageHandler() before start()');
+      logger.warn('No message handler set - incoming messages will be ignored');
     }
 
     // Connect to configured agents
@@ -264,15 +283,80 @@ export class A2AChannel implements Channel {
 
     this.gopherholeClient.on('message', (message) => {
       // Handle incoming message from another agent
-      logger.info({ from: message.from, taskId: message.taskId }, 'Received message via GopherHole');
+      logger.info({ 
+        from: message.from, 
+        taskId: message.taskId,
+        partsCount: message.payload?.parts?.length,
+        partKinds: message.payload?.parts?.map(p => p.kind),
+      }, 'Received message via GopherHole');
       
       const text = message.payload.parts
         ?.filter((p) => p.kind === 'text')
         .map((p) => p.text)
         .join('\n') ?? '';
 
-      // Skip system messages or empty messages
-      if (message.from === 'system' || !text.trim()) {
+      // Extract images from data/file parts
+      const images: ChannelImage[] = [];
+      for (const part of message.payload.parts || []) {
+        if ((part.kind === 'data' || part.kind === 'file') && part.mimeType?.startsWith('image/')) {
+          const imageId = `a2a-img-${Date.now()}-${images.length}`;
+          if (part.data) {
+            // Base64 data - pass directly as base64 (not as data URL)
+            images.push({
+              id: imageId,
+              url: '', // Empty URL since we have base64
+              base64: part.data,
+              mimeType: part.mimeType,
+            });
+          } else if (part.uri) {
+            // URI reference
+            images.push({
+              id: imageId,
+              url: part.uri,
+              mimeType: part.mimeType,
+            });
+          }
+        }
+      }
+
+      if (images.length > 0) {
+        logger.info({ from: message.from, imageCount: images.length }, 'Received images via A2A');
+      }
+
+      // Extract documents from data/file parts (PDFs, Office docs, etc.)
+      const documents: ChannelDocument[] = [];
+      const documentMimeTypes = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-powerpoint',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'text/plain',
+        'text/csv',
+        'text/markdown',
+        'application/json',
+      ];
+      for (const part of message.payload.parts || []) {
+        if ((part.kind === 'data' || part.kind === 'file') && part.mimeType && documentMimeTypes.includes(part.mimeType)) {
+          const docId = `a2a-doc-${Date.now()}-${documents.length}`;
+          documents.push({
+            id: docId,
+            filename: `document-${documents.length}${mimeToExtension(part.mimeType)}`,
+            mimeType: part.mimeType,
+            text: '', // Text extraction would happen in message handler
+            base64: part.data,
+          });
+        }
+      }
+
+      if (documents.length > 0) {
+        logger.info({ from: message.from, documentCount: documents.length }, 'Received documents via A2A');
+      }
+
+      // Skip system messages or empty messages (but allow if attachments present)
+      if (message.from === 'system' || (!text.trim() && images.length === 0 && documents.length === 0)) {
         logger.debug({ from: message.from, taskId: message.taskId }, 'Skipping system/empty message');
         return;
       }
@@ -285,6 +369,8 @@ export class A2AChannel implements Channel {
         timestamp: new Date(message.timestamp),
         chatId: 'gopherhole',
         isGroup: false,
+        images: images.length > 0 ? images : undefined,
+        documents: documents.length > 0 ? documents : undefined,
         metadata: {
           a2a: true,
           gopherhole: true,
@@ -485,20 +571,33 @@ export class A2AChannel implements Channel {
   }
 
   /**
-   * Send a task_response via GopherHole SDK (completes the original task)
+   * Send a task_response via GopherHole WebSocket (completes the original task)
    */
   private sendGopherHoleTaskResponse(taskId: string, text: string): void {
-    if (!this.gopherholeClient?.connected) {
-      logger.warn({ taskId }, 'Cannot send task_response - GopherHole not connected');
+    // Access the underlying WebSocket from the SDK
+    // The SDK doesn't expose this directly, so we need to access it via the internal ws property
+    const client = this.gopherholeClient as any;
+    const ws = client?.ws;
+    
+    if (!ws || ws.readyState !== 1) {
+      logger.warn({ taskId }, 'Cannot send task_response - GopherHole WebSocket not connected');
       return;
     }
 
-    try {
-      this.gopherholeClient.respond(taskId, text);
-      logger.debug({ taskId }, 'Sent task_response to GopherHole');
-    } catch (err) {
-      logger.error({ taskId, error: (err as Error).message }, 'Failed to send task_response');
-    }
+    const response = {
+      type: 'task_response',
+      taskId,
+      status: { state: 'completed' },
+      artifact: {
+        artifactId: `response-${Date.now()}`,
+        mimeType: 'text/plain',
+        parts: [{ kind: 'text', text }],
+      },
+      lastChunk: true,
+    };
+
+    ws.send(JSON.stringify(response));
+    logger.debug({ taskId }, 'Sent task_response to GopherHole');
   }
 
   /**
@@ -593,33 +692,12 @@ export class A2AChannel implements Channel {
    * Send a message to a remote agent via GopherHole SDK
    */
   async sendViaGopherHole(targetAgentId: string, text: string, contextId?: string): Promise<AgentResponse> {
-    return this.sendPartsViaGopherHole(targetAgentId, [{ kind: 'text', text }], contextId);
-  }
-
-  /**
-   * Send a multi-part message (text, images, files) to a remote agent via GopherHole SDK
-   */
-  async sendPartsViaGopherHole(
-    targetAgentId: string,
-    parts: Array<{ kind: string; text?: string; data?: string; mimeType?: string }>,
-    contextId?: string
-  ): Promise<AgentResponse> {
     if (!this.gopherholeClient?.connected) {
       throw new Error('GopherHole not connected');
     }
 
-    const payload: MessagePayload = {
-      role: 'user',
-      parts: parts.map(p => ({
-        kind: p.kind as 'text' | 'file' | 'data',
-        text: p.text,
-        data: p.data,
-        mimeType: p.mimeType,
-      })),
-    };
-
-    const task = await this.gopherholeClient.send(targetAgentId, payload, { contextId });
-    logger.debug({ taskId: task.id, targetAgentId, status: task.status.state, partsCount: parts.length }, 'Sent multi-part message via GopherHole');
+    const task = await this.gopherholeClient.sendText(targetAgentId, text, { contextId });
+    logger.debug({ taskId: task.id, targetAgentId, status: task.status.state }, 'Sent message via GopherHole');
     
     // If task already completed (synchronous response)
     if (task.status.state === 'completed' || task.status.state === 'failed') {
@@ -711,5 +789,5 @@ export class A2AChannel implements Channel {
   }
 }
 
-// Export the channel class - consumers instantiate and register themselves
+// Create the channel instance (registration should be done by the consuming application)
 export const a2aChannel = new A2AChannel();
