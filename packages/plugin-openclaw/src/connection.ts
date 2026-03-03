@@ -52,6 +52,7 @@ export class A2AConnectionManager {
       agentCard: gphConfig.agentCard ?? {
         name: this.config.agentName ?? 'OpenClaw',
         description: 'Personal AI assistant with tools, web search, browser control, and various skills',
+        version: '0.1.0',
         skills: [
           {
             id: 'chat',

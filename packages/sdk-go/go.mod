@@ -1,4 +1,4 @@
-module github.com/gopherhole/gopherhole-go
+module github.com/helixdata/gopherhole-clients/packages/sdk-go
 
 go 1.21
 
