@@ -52,6 +52,10 @@ const plugin = {
             type: 'string',
             description: 'Path to image file to send (for send action)',
           },
+          file: {
+            type: 'string',
+            description: 'Path to file to send - PDF, documents, etc. (for send action)',
+          },
         },
         required: ['action'],
       },
@@ -60,6 +64,7 @@ const plugin = {
         const agentId = params.agentId as string | undefined;
         const message = params.message as string | undefined;
         const imagePath = params.image as string | undefined;
+        const filePath = params.file as string | undefined;
         
         const manager = getA2AConnectionManager();
         if (!manager) {
@@ -72,8 +77,8 @@ const plugin = {
         }
 
         if (action === 'send') {
-          if (!agentId || (!message && !imagePath)) {
-            return { content: [{ type: 'text', text: JSON.stringify({ status: 'error', error: 'agentId and (message or image) required for send action' }) }] };
+          if (!agentId || (!message && !imagePath && !filePath)) {
+            return { content: [{ type: 'text', text: JSON.stringify({ status: 'error', error: 'agentId and (message, image, or file) required for send action' }) }] };
           }
           try {
             const isGopherHoleConnected = manager.isGopherHoleConnected();
@@ -87,24 +92,42 @@ const plugin = {
               parts.push({ kind: 'text', text: message });
             }
             
-            // Add image part if image path provided
-            if (imagePath) {
+            // Add file part if image or file path provided
+            const attachmentPath = imagePath || filePath;
+            if (attachmentPath) {
               try {
-                const imageData = readFileSync(imagePath);
-                const base64Data = imageData.toString('base64');
-                const ext = extname(imagePath).toLowerCase();
+                const fileData = readFileSync(attachmentPath);
+                const base64Data = fileData.toString('base64');
+                const ext = extname(attachmentPath).toLowerCase();
                 const mimeTypes: Record<string, string> = {
+                  // Images
                   '.png': 'image/png',
                   '.jpg': 'image/jpeg',
                   '.jpeg': 'image/jpeg',
                   '.gif': 'image/gif',
                   '.webp': 'image/webp',
                   '.svg': 'image/svg+xml',
+                  // Documents
+                  '.pdf': 'application/pdf',
+                  '.doc': 'application/msword',
+                  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                  '.xls': 'application/vnd.ms-excel',
+                  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                  '.ppt': 'application/vnd.ms-powerpoint',
+                  '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                  '.txt': 'text/plain',
+                  '.csv': 'text/csv',
+                  '.json': 'application/json',
+                  '.xml': 'application/xml',
+                  '.html': 'text/html',
+                  '.md': 'text/markdown',
+                  // Archives
+                  '.zip': 'application/zip',
                 };
                 const mimeType = mimeTypes[ext] || 'application/octet-stream';
                 parts.push({ kind: 'data', data: base64Data, mimeType });
-              } catch (imgErr) {
-                return { content: [{ type: 'text', text: JSON.stringify({ status: 'error', error: `Failed to read image: ${(imgErr as Error).message}` }) }] };
+              } catch (fileErr) {
+                return { content: [{ type: 'text', text: JSON.stringify({ status: 'error', error: `Failed to read file: ${(fileErr as Error).message}` }) }] };
               }
             }
             
