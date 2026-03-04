@@ -71,4 +71,3 @@ fmt.Println(task.Messages[1].Parts[0].Text)
 ## License
 
 MIT License - see [LICENSE](./LICENSE) for details.
-
