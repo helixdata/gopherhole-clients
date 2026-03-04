@@ -12,6 +12,7 @@ Official SDKs, plugins, and integrations for [GopherHole](https://gopherhole.ai)
 | [plugin-openclaw](./packages/plugin-openclaw) | OpenClaw/Clawdbot A2A plugin | `gopherhole_openclaw_a2a` |
 | [plugin-marketclaw](./packages/plugin-marketclaw) | MarketClaw A2A plugin | `@gopherhole/marketclaw` |
 | [mcp](./packages/mcp) | MCP server for IDE integration | `@gopherhole/mcp` |
+| [discord-bot](./packages/discord-bot) | Discord bot for agent interaction | `@gopherhole/discord-bot` |
 
 ## Quick Start
 
