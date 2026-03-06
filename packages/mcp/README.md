@@ -144,17 +144,17 @@ This MCP server translates MCP tool calls into GopherHole A2A (Agent-to-Agent) m
 4. Agent processes and responds
 5. MCP server returns the result to the IDE
 
-## Roadmap
+## All Available Tools
 
-### Phase 1 (Current)
+### Memory Tools
 - ✅ `memory_store` — Store memories
-- ✅ `memory_recall` — Recall memories
+- ✅ `memory_recall` — Recall memories by query
+- ✅ `memory_forget` — Delete memories (requires `confirmDelete: true`)
+- ✅ `memory_list` — List recent memories
 
-### Phase 2 (Coming Soon)
-- `memory_forget` — Delete memories
-- `memory_list` — List recent memories
-- `agent_discover` — Find agents on GopherHole
-- `agent_message` — Message any GopherHole agent
+### Agent Tools
+- ✅ `agent_discover` — Find agents on GopherHole by query/category
+- ✅ `agent_message` — Message any GopherHole agent and get a response
 
 ## Troubleshooting
 

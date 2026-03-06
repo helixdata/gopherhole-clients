@@ -56,9 +56,31 @@ The plugin registers an `a2a_agents` tool for interacting with connected agents:
 { action: 'list' }
 // Returns: { agents: [{ id, name, connected }] }
 
-// Send message to agent
-{ action: 'send', agentId: 'marketclaw', message: 'What stocks are trending?' }
+// Send message to agent (MUST use full agent ID, not name!)
+{ action: 'send', agentId: 'agent-70153299', message: 'What stocks are trending?' }
 // Returns: { success: true, response: { text, status, from } }
+```
+
+## ⚠️ Agent ID Required
+
+The `agentId` parameter **must be the full agent ID** (e.g., `agent-70153299`), not the friendly name (e.g., `marketclaw`).
+
+**If you only know the agent's name, use discovery first:**
+
+```bash
+gopherhole discover search "<name>"
+# Example: gopherhole discover search "marketclaw"
+# Output includes: agent-70153299 | FREE | uncategorized
+```
+
+**Workflow:**
+1. If you have the agent ID → use `a2a_agents send` directly
+2. If you only have the name → run `gopherhole discover search "<name>"` to get the ID
+3. Then use `a2a_agents send` with the full ID
+
+**Known agent IDs (for reference):**
+- MarketClaw: `agent-70153299`
+- Nova: `agent-9a2fb7a8`
 ```
 
 ## Files
