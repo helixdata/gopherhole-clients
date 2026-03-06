@@ -1,5 +1,10 @@
-import { Client, GatewayIntentBits, Events, ChatInputCommandInteraction, EmbedBuilder } from 'discord.js';
+import { Client, GatewayIntentBits, Events, ChatInputCommandInteraction, AutocompleteInteraction, EmbedBuilder } from 'discord.js';
 import 'dotenv/config';
+
+// Brief cache for autocomplete results (10 second TTL)
+const autocompleteCache = new Map<string, { results: any[]; timestamp: number }>();
+const AUTOCOMPLETE_CACHE_TTL = 10 * 1000;
+const MIN_SEARCH_LENGTH = 2;
 
 const GOPHERHOLE_API = process.env.GOPHERHOLE_API || 'https://gopherhole.ai/api';
 const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
@@ -37,6 +42,7 @@ async function handleLink(interaction: ChatInputCommandInteraction) {
   await interaction.deferReply({ ephemeral: true });
   
   try {
+    console.log('Link request for:', interaction.user.id, interaction.user.tag);
     const result = await gopherholeApi('/discord/link/initiate', {
       method: 'POST',
       body: JSON.stringify({
@@ -46,6 +52,7 @@ async function handleLink(interaction: ChatInputCommandInteraction) {
         channel_id: interaction.channelId,
       }),
     });
+    console.log('Link result:', result);
 
     if (result.error === 'already_linked') {
       await interaction.editReply({
@@ -85,7 +92,7 @@ async function handleUnlink(interaction: ChatInputCommandInteraction) {
   
   // Note: Unlink needs user auth, so we direct them to the dashboard
   await interaction.editReply({
-    content: '🔗 To unlink your Discord account, visit your GopherHole dashboard:\nhttps://gopherhole.ai/settings',
+    content: '🔗 To unlink your Discord account, visit your GopherHole dashboard:\nhttps://gopherhole.ai/dashboard/settings',
   });
 }
 
@@ -94,7 +101,7 @@ async function handleCredits(interaction: ChatInputCommandInteraction) {
   
   // Credits check would need user auth - direct to dashboard
   await interaction.editReply({
-    content: '💳 Check your credits balance at:\nhttps://gopherhole.ai/credits',
+    content: '💳 Check your credits balance at:\nhttps://gopherhole.ai/dashboard/credits',
   });
 }
 
@@ -104,19 +111,23 @@ async function handleAgents(interaction: ChatInputCommandInteraction) {
   try {
     const result = await gopherholeApi('/discord/agents');
     
-    const freeList = result.free?.map((a: any) => `• **${a.name}** — ${a.description || 'No description'}`).join('\n') || 'None';
+    const freeList = result.free?.map((a: any) => 
+      `• **${a.name}** \`${a.handle}\` — ${a.description || 'No description'}`
+    ).join('\n') || 'None';
+    
     const popularList = result.popular?.slice(0, 5).map((a: any) => 
-      `• **${a.name}** ${a.free ? '(Free)' : `(${a.price})`} — ${a.description || 'No description'}`
+      `• **${a.name}** \`${a.handle}\` ${a.free ? '(Free)' : `(${a.price})`} — ${a.description || 'No description'}`
     ).join('\n') || 'None';
 
     const embed = new EmbedBuilder()
       .setColor(0x22c55e)
-      .setTitle('🐿️ Available Agents')
+      .setTitle('🐿️ Featured Agents')
       .addFields(
         { name: '🆓 Free Agents (no account needed)', value: freeList },
-        { name: '🔥 Popular Agents', value: popularList }
+        { name: '🔥 Popular Agents', value: popularList },
+        { name: '💡 Find More', value: 'Use `/gopher search <query>` to discover more agents' }
       )
-      .setFooter({ text: 'Use /gopher ask <agent> <message> to query an agent' });
+      .setFooter({ text: 'Use /gopher ask <handle> <message>' });
 
     await interaction.editReply({ embeds: [embed] });
   } catch (error) {
@@ -130,6 +141,7 @@ async function handleAgents(interaction: ChatInputCommandInteraction) {
 async function handleAsk(interaction: ChatInputCommandInteraction) {
   const agent = interaction.options.getString('agent', true);
   const message = interaction.options.getString('message', true);
+  const skill = interaction.options.getString('skill', false);
   
   await interaction.deferReply();
   
@@ -139,6 +151,7 @@ async function handleAsk(interaction: ChatInputCommandInteraction) {
       body: JSON.stringify({
         discord_id: interaction.user.id,
         agent_id: agent,
+        skill_id: skill || undefined,
         message: { parts: [{ kind: 'text', text: message }] },
       }),
     });
@@ -215,7 +228,7 @@ async function handleSearch(interaction: ChatInputCommandInteraction) {
   await interaction.deferReply();
   
   try {
-    const res = await fetch(`${GOPHERHOLE_API.replace('/api', '')}/api/discover?q=${encodeURIComponent(query)}&limit=5`);
+    const res = await fetch(`${GOPHERHOLE_API}/discover/agents?q=${encodeURIComponent(query)}&limit=5`);
     const result = await res.json();
 
     if (!result.agents?.length) {
@@ -224,16 +237,17 @@ async function handleSearch(interaction: ChatInputCommandInteraction) {
     }
 
     const list = result.agents.map((a: any) => {
-      const card = a.agent_card ? JSON.parse(a.agent_card) : {};
-      const price = a.price_amount ? `$${a.price_amount}` : 'Free';
-      return `• **${card.name || a.id}** (${price}) — ${card.description?.slice(0, 80) || 'No description'}`;
-    }).join('\n');
+      const price = a.priceAmount ? `$${a.priceAmount}` : 'Free';
+      const slug = (a.name || a.id).toLowerCase().replace(/\s+/g, '-');
+      const handle = a.tenantSlug ? `${a.tenantSlug}/${slug}` : a.id;
+      return `• **${a.name || a.id}** \`${handle}\` (${price})\n  ${a.description?.slice(0, 60) || 'No description'}`;
+    }).join('\n\n');
 
     const embed = new EmbedBuilder()
       .setColor(0x22c55e)
       .setTitle(`🔍 Search: "${query}"`)
       .setDescription(list)
-      .setFooter({ text: 'Use /gopher ask <agent-id> <message> to query' });
+      .setFooter({ text: 'Use /gopher ask <agent name> <message>' });
 
     await interaction.editReply({ embeds: [embed] });
   } catch (error) {
@@ -248,7 +262,7 @@ async function handleInfo(interaction: ChatInputCommandInteraction) {
   await interaction.deferReply();
   
   try {
-    const res = await fetch(`${GOPHERHOLE_API.replace('/api', '')}/api/discover/${agentId}`);
+    const res = await fetch(`${GOPHERHOLE_API}/discover/agents/${encodeURIComponent(agentId)}`);
     const result = await res.json();
 
     if (result.error || !result.agent) {
@@ -257,24 +271,38 @@ async function handleInfo(interaction: ChatInputCommandInteraction) {
     }
 
     const a = result.agent;
-    const card = a.agent_card ? JSON.parse(a.agent_card) : {};
-    const price = a.price_amount ? `$${a.price_amount}/request` : 'Free';
+    const card = a.agentCard || {};
+    const price = a.priceAmount ? `$${a.priceAmount}/request` : 'Free';
+    const stats = a.stats || {};
+
+    // Build handle from tenant slug + agent name
+    const agentSlug = (a.name || a.id).toLowerCase().replace(/\s+/g, '-');
+    const handle = a.tenantSlug ? `${a.tenantSlug}/${agentSlug}` : a.id;
 
     const embed = new EmbedBuilder()
       .setColor(0x22c55e)
-      .setTitle(`🐿️ ${card.name || a.id}`)
-      .setDescription(card.description || 'No description')
+      .setTitle(`🐿️ ${a.name || a.id}`)
+      .setDescription(a.description || 'No description')
       .addFields(
-        { name: 'ID', value: `\`${a.id}\``, inline: true },
+        { name: 'Handle', value: `\`${handle}\``, inline: true },
         { name: 'Price', value: price, inline: true },
-        { name: 'Messages', value: String(a.message_count || 0), inline: true }
+        { name: 'Rating', value: stats.ratingCount ? `${stats.avgRating}⭐ (${stats.ratingCount})` : 'No ratings', inline: true }
       );
 
     if (card.skills?.length) {
+      const skillPricing = a.skillPricing || {};
       embed.addFields({
         name: 'Skills',
-        value: card.skills.map((s: any) => s.name).join(', '),
+        value: card.skills.slice(0, 5).map((s: any) => {
+          const sp = skillPricing[s.id];
+          const priceTag = sp ? ` ($${sp.amount})` : '';
+          return `**${s.name}**${priceTag} — ${s.description || ''}`;
+        }).join('\n'),
       });
+    }
+    
+    if (a.tenantName) {
+      embed.setFooter({ text: `By ${a.tenantName}` });
     }
 
     await interaction.editReply({ embeds: [embed] });
@@ -287,13 +315,135 @@ async function handleInfo(interaction: ChatInputCommandInteraction) {
 // Event handlers
 client.once(Events.ClientReady, (c) => {
   console.log(`✅ GopherBot ready as ${c.user.tag}`);
-  console.log(`📡 Connected to ${c.guilds.cache.size} guilds`);
+  console.log(`📡 Connected to ${c.guilds.cache.size} guilds:`);
+  c.guilds.cache.forEach(g => console.log(`   - ${g.name} (${g.id})`));
 });
 
+// Autocomplete handler for agent and skill selection
+async function handleAutocomplete(interaction: AutocompleteInteraction) {
+  const focusedOption = interaction.options.getFocused(true);
+  
+  // Handle skill autocomplete
+  if (focusedOption.name === 'skill') {
+    const agentHandle = interaction.options.getString('agent');
+    if (!agentHandle) {
+      await interaction.respond([{ name: 'Select an agent first', value: '' }]);
+      return;
+    }
+    
+    try {
+      const res = await fetch(`${GOPHERHOLE_API}/discover/agents/${encodeURIComponent(agentHandle)}`);
+      const result = await res.json();
+      
+      if (!result.agent?.agentCard?.skills?.length) {
+        await interaction.respond([{ name: 'No skills found', value: '' }]);
+        return;
+      }
+      
+      const query = focusedOption.value.toLowerCase();
+      const skills = result.agent.agentCard.skills
+        .filter((s: any) => !query || s.name.toLowerCase().includes(query) || s.id.toLowerCase().includes(query))
+        .slice(0, 25);
+      
+      await interaction.respond(
+        skills.map((s: any) => ({
+          name: `${s.name} — ${(s.description || '').slice(0, 50)}`,
+          value: s.id,
+        }))
+      );
+    } catch (error) {
+      console.error('Skill autocomplete error:', error);
+      await interaction.respond([]);
+    }
+    return;
+  }
+  
+  if (focusedOption.name !== 'agent') return;
+  
+  try {
+    const query = focusedOption.value.trim().toLowerCase();
+    
+    // Check cache first
+    const cached = autocompleteCache.get(query);
+    if (cached && Date.now() - cached.timestamp < AUTOCOMPLETE_CACHE_TTL) {
+      await interaction.respond(cached.results);
+      return;
+    }
+    
+    let results: any[];
+    
+    // If short/empty query, show featured agents
+    if (query.length < MIN_SEARCH_LENGTH) {
+      const result = await gopherholeApi('/discord/agents');
+      const agents = [...(result.free || []), ...(result.popular || [])].slice(0, 25);
+      results = agents.map(a => ({
+        name: `${a.name} [${a.handle}] ${a.free ? '(Free)' : `(${a.price})`}`.slice(0, 100),
+        value: a.handle || a.id,
+      }));
+    } else {
+      // Live search via discover API
+      const res = await fetch(`${GOPHERHOLE_API}/discover/agents?q=${encodeURIComponent(query)}&limit=50`);
+      const result = await res.json();
+      
+      if (!result.agents?.length) {
+        results = [];
+      } else {
+        // Filter to agents that support text input
+        const textCompatible = result.agents.filter((a: any) => {
+          if (!a.skills?.length) return false;
+          // Check if any skill accepts text/plain or text/*
+          return a.skills.some((s: any) => 
+            s.inputModes?.some((mode: string) => 
+              mode === 'text/plain' || mode === 'text/*' || mode.startsWith('text/')
+            )
+          );
+        });
+        
+        results = textCompatible.slice(0, 25).map((a: any) => {
+          const slug = (a.name || a.id).toLowerCase().replace(/\s+/g, '-');
+          const handle = a.tenantSlug ? `${a.tenantSlug}/${slug}` : a.id;
+          const price = a.priceAmount ? `$${a.priceAmount}` : 'Free';
+          return {
+            name: `${a.name} [${handle}] (${price})`.slice(0, 100),
+            value: handle,
+          };
+        });
+      }
+    }
+    
+    // Cache results
+    autocompleteCache.set(query, { results, timestamp: Date.now() });
+    
+    // Clean old cache entries periodically
+    if (autocompleteCache.size > 100) {
+      const now = Date.now();
+      for (const [key, val] of autocompleteCache) {
+        if (now - val.timestamp > AUTOCOMPLETE_CACHE_TTL) {
+          autocompleteCache.delete(key);
+        }
+      }
+    }
+    
+    await interaction.respond(results);
+  } catch (error) {
+    console.error('Autocomplete error:', error);
+    await interaction.respond([]);
+  }
+}
+
 client.on(Events.InteractionCreate, async (interaction) => {
+  console.log('Interaction received:', interaction.type, interaction.isCommand() ? (interaction as any).commandName : 'N/A');
+  
+  // Handle autocomplete
+  if (interaction.isAutocomplete()) {
+    await handleAutocomplete(interaction);
+    return;
+  }
+  
   if (!interaction.isChatInputCommand()) return;
 
   const { commandName } = interaction;
+  console.log('Command:', commandName, 'Subcommand:', interaction.options.getSubcommand());
 
   // Handle /gopher subcommands
   if (commandName === 'gopher') {

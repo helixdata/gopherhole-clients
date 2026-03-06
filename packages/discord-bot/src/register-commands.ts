@@ -41,14 +41,22 @@ const commands = [
         .addStringOption(opt =>
           opt
             .setName('agent')
-            .setDescription('Agent ID (e.g., agent-echo-official)')
+            .setDescription('Agent name (e.g., "Echo Agent" or "memory")')
             .setRequired(true)
+            .setAutocomplete(true)
         )
         .addStringOption(opt =>
           opt
             .setName('message')
             .setDescription('Your message to the agent')
             .setRequired(true)
+        )
+        .addStringOption(opt =>
+          opt
+            .setName('skill')
+            .setDescription('Target a specific skill (optional)')
+            .setRequired(false)
+            .setAutocomplete(true)
         )
     )
     .addSubcommand(sub =>
@@ -82,6 +90,7 @@ const commands = [
             .setName('agent')
             .setDescription('Agent ID')
             .setRequired(true)
+            .setAutocomplete(true)
         )
     )
     .toJSON(),
