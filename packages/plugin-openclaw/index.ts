@@ -72,8 +72,13 @@ const plugin = {
         }
 
         if (action === 'list') {
-          const agents = manager.listAgents();
-          return { content: [{ type: 'text', text: JSON.stringify({ status: 'ok', agents }) }] };
+          const hubStatus = manager.listAgents();
+          const availableAgents = await manager.listAvailableAgents();
+          return { content: [{ type: 'text', text: JSON.stringify({ 
+            status: 'ok', 
+            connected: hubStatus.some(h => h.connected),
+            agents: availableAgents 
+          }) }] };
         }
 
         if (action === 'send') {
