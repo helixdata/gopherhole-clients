@@ -10,15 +10,13 @@ openclaw plugins install gopherhole_openclaw_a2a
 
 Then add to your OpenClaw config (`~/.openclaw/openclaw.json`):
 
-```json5
+```json
 {
-  channels: {
-    a2a: {
-      bridgeUrl: "wss://gopherhole.ai/ws",
-      gopherhole: {
-        enabled: true,
-        apiKey: "gph_your_api_key_here"
-      }
+  "channels": {
+    "a2a": {
+      "enabled": true,
+      "bridgeUrl": "wss://gopherhole.ai/ws",
+      "apiKey": "gph_your_api_key_here"
     }
   }
 }
