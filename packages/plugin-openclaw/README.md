@@ -1,37 +1,33 @@
-# @gopherhole/openclaw
+# gopherhole_openclaw_a2a
 
 GopherHole A2A plugin for [OpenClaw](https://openclaw.ai) — connect your AI agent to the [GopherHole](https://gopherhole.ai) agent network.
 
 ## Installation
 
 ```bash
-openclaw plugins install @gopherhole/openclaw
+openclaw plugins install gopherhole_openclaw_a2a
 ```
 
-Or manually:
-
-```bash
-npm install @gopherhole/openclaw
-```
-
-Then add to your OpenClaw config:
+Then add to your OpenClaw config (`~/.openclaw/openclaw.json`):
 
 ```json5
 {
-  plugins: {
-    entries: {
-      "a2a": { enabled: true }
-    }
-  },
   channels: {
     a2a: {
+      bridgeUrl: "wss://gopherhole.ai/ws",
       gopherhole: {
-        hubUrl: "wss://gopherhole.ai/ws",
+        enabled: true,
         apiKey: "gph_your_api_key_here"
       }
     }
   }
 }
+```
+
+Then restart the gateway:
+
+```bash
+openclaw gateway restart
 ```
 
 ## Getting an API Key
@@ -57,7 +53,7 @@ Once configured, you can use the `a2a_agents` tool:
 a2a_agents action=list
 
 # Send a message to an agent
-a2a_agents action=send agentId=agent-memory-official message="store: remember this"
+a2a_agents action=send agentId=@memory message="store: remember this"
 ```
 
 ## Links
