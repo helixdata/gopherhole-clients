@@ -270,7 +270,57 @@ export class A2AConnectionManager {
   }
 
   /**
-   * List connected agents (just GopherHole for now)
+   * List available agents from GopherHole
+   * Fetches same-tenant agents + agents with approved access + public agents
+   */
+  async listAvailableAgents(): Promise<Array<{
+    id: string;
+    name: string;
+    description?: string;
+    accessType: 'same-tenant' | 'public' | 'granted';
+  }>> {
+    if (!this.config.apiKey) {
+      return [];
+    }
+
+    const hubUrl = this.config.bridgeUrl || 'wss://gopherhole.ai/ws';
+    // Convert wss:// to https:// for API calls
+    const apiBase = hubUrl.replace('wss://', 'https://').replace('/ws', '');
+
+    try {
+      const response = await fetch(`${apiBase}/api/agents/available`, {
+        headers: {
+          'Authorization': `Bearer ${this.config.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        console.error(`[a2a] Failed to fetch agents: ${response.status}`);
+        return [];
+      }
+
+      const data = await response.json() as { agents: Array<{
+        id: string;
+        name: string;
+        description?: string;
+        access_type: string;
+      }> };
+
+      return data.agents.map(a => ({
+        id: a.id,
+        name: a.name,
+        description: a.description,
+        accessType: a.access_type as 'same-tenant' | 'public' | 'granted',
+      }));
+    } catch (err) {
+      console.error('[a2a] Error fetching available agents:', (err as Error).message);
+      return [];
+    }
+  }
+
+  /**
+   * List connection status (for backward compatibility)
    */
   listAgents(): Array<{ id: string; name: string; connected: boolean }> {
     const agents: Array<{ id: string; name: string; connected: boolean }> = [];

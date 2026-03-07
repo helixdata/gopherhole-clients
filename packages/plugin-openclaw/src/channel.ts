@@ -255,16 +255,18 @@ export const a2aPlugin: ChannelPlugin<ResolvedA2AAccount> = {
       lastError: snapshot.lastError ?? null,
     }),
     probeAccount: async () => ({ ok: connectionManager !== null }),
-    buildAccountSnapshot: ({ account, runtime }) => {
-      const agents = connectionManager?.listAgents() ?? [];
+    buildAccountSnapshot: async ({ account, runtime }) => {
+      const connectionStatus = connectionManager?.listAgents() ?? [];
+      const availableAgents = await connectionManager?.listAvailableAgents() ?? [];
       return {
         accountId: account.accountId,
         name: account.name,
         enabled: account.enabled,
         configured: account.configured,
         running: runtime?.running ?? false,
-        connected: agents.some((a) => a.connected),
-        agents,
+        connected: connectionStatus.some((a) => a.connected),
+        hubStatus: connectionStatus,
+        availableAgents,
         lastStartAt: runtime?.lastStartAt ?? null,
         lastStopAt: runtime?.lastStopAt ?? null,
         lastError: runtime?.lastError ?? null,
