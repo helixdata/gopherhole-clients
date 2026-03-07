@@ -39,28 +39,29 @@ export interface A2AResponse {
   from?: string;
 }
 
+/**
+ * A2A Channel Config (flat structure)
+ * 
+ * Example:
+ * {
+ *   "channels": {
+ *     "a2a": {
+ *       "enabled": true,
+ *       "bridgeUrl": "wss://gopherhole.ai/ws",
+ *       "apiKey": "gph_your_api_key"
+ *     }
+ *   }
+ * }
+ */
 export interface A2AChannelConfig {
   enabled?: boolean;
-  agentId?: string;        // Our agent ID (default: "clawdbot")
-  agentName?: string;      // Display name
-  bridgeUrl?: string;      // Legacy: direct bridge URL (ws://...)
-  agents?: Array<{         // Legacy: direct agent connections
-    id: string;
-    url: string;
-    name?: string;
-  }>;
-  gopherhole?: {           // GopherHole Agent Hub connection
-    enabled?: boolean;
-    apiKey: string;
-    hubUrl?: string;       // Default: wss://gopherhole.ai/ws
-    requestTimeoutMs?: number;
-    agentCard?: A2AAgentCard;  // Custom agent card (overrides defaults)
-  };
-  auth?: {
-    token?: string;
-  };
-  reconnectIntervalMs?: number;
-  requestTimeoutMs?: number;
+  bridgeUrl?: string;           // WebSocket URL (default: wss://gopherhole.ai/ws)
+  apiKey?: string;              // GopherHole API key (gph_...)
+  agentId?: string;             // Our agent ID (default: "openclaw")
+  agentName?: string;           // Display name for agent card
+  agentCard?: A2AAgentCard;     // Custom agent card (overrides defaults)
+  reconnectIntervalMs?: number; // Reconnect delay (default: 5000)
+  requestTimeoutMs?: number;    // Request timeout (default: 180000)
 }
 
 export interface ResolvedA2AAccount {
@@ -70,6 +71,5 @@ export interface ResolvedA2AAccount {
   configured: boolean;
   agentId: string;
   bridgeUrl: string | null;
-  agents: Array<{ id: string; url: string; name?: string }>;
   config: A2AChannelConfig;
 }

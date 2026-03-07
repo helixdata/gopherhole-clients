@@ -22,7 +22,7 @@ export class A2AConnectionManager {
 
   constructor(config: A2AChannelConfig) {
     this.config = config;
-    this.agentId = config.agentId ?? 'clawdbot';
+    this.agentId = config.agentId ?? 'openclaw';
   }
 
   setMessageHandler(handler: MessageHandler): void {
@@ -30,26 +30,25 @@ export class A2AConnectionManager {
   }
 
   async start(): Promise<void> {
-    // Connect to GopherHole if configured
-    if (this.config.gopherhole?.enabled && this.config.gopherhole?.apiKey) {
+    // Connect to GopherHole if configured (flat config: enabled + apiKey)
+    if (this.config.enabled && this.config.apiKey) {
       await this.connectToGopherHole();
     }
   }
 
   private async connectToGopherHole(): Promise<void> {
-    const gphConfig = this.config.gopherhole!;
-    const hubUrl = gphConfig.hubUrl || 'wss://gopherhole.ai/ws';
+    const hubUrl = this.config.bridgeUrl || 'wss://gopherhole.ai/ws';
     const timeoutMs = this.config.requestTimeoutMs ?? 180000;
 
     this.gopherhole = new GopherHole({
-      apiKey: gphConfig.apiKey,
+      apiKey: this.config.apiKey!,
       hubUrl,
       autoReconnect: true,
       reconnectDelay: this.config.reconnectIntervalMs ?? 5000,
       maxReconnectAttempts: 20,
       requestTimeout: timeoutMs,
       messageTimeout: timeoutMs,
-      agentCard: gphConfig.agentCard ?? {
+      agentCard: this.config.agentCard ?? {
         name: this.config.agentName ?? 'OpenClaw',
         description: 'Personal AI assistant with tools, web search, browser control, and various skills',
         version: '0.1.0',

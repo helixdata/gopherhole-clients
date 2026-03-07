@@ -1,5 +1,5 @@
 /**
- * A2A Channel Plugin for Clawdbot
+ * A2A Channel Plugin for OpenClaw
  * Enables communication with other AI agents via A2A protocol
  */
 
@@ -18,7 +18,7 @@ import type {
 } from './types.js';
 
 // Minimal runtime interface - what we actually need
-interface ClawdbotRuntime {
+interface OpenClawRuntime {
   handleInbound(params: {
     channel: string;
     chatId: string;
@@ -32,14 +32,14 @@ interface ClawdbotRuntime {
 
 // Runtime state
 let connectionManager: A2AConnectionManager | null = null;
-let currentRuntime: ClawdbotRuntime | null = null;
+let currentRuntime: OpenClawRuntime | null = null;
 
 export function setA2ARuntime(runtime: unknown): void {
-  currentRuntime = runtime as ClawdbotRuntime;
+  currentRuntime = runtime as OpenClawRuntime;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type ClawdbotConfig = any;
+type OpenClawConfig = any;
 
 // Minimal channel plugin interfaces (self-contained)
 interface ChannelAccountSnapshot {
@@ -85,12 +85,12 @@ type ChannelPlugin<T = any> = {
   };
 };
 
-function resolveA2AConfig(cfg: ClawdbotConfig): A2AChannelConfig {
+function resolveA2AConfig(cfg: OpenClawConfig): A2AChannelConfig {
   return cfg?.channels?.a2a ?? {};
 }
 
 function resolveA2AAccount(opts: {
-  cfg: ClawdbotConfig;
+  cfg: OpenClawConfig;
   accountId?: string;
 }): ResolvedA2AAccount {
   const config = resolveA2AConfig(opts.cfg);
@@ -100,10 +100,9 @@ function resolveA2AAccount(opts: {
     accountId,
     name: config.agentName ?? 'A2A',
     enabled: config.enabled ?? false,
-    configured: !!(config.bridgeUrl || (config.agents && config.agents.length > 0) || config.gopherhole?.enabled),
-    agentId: config.agentId ?? 'clawdbot',
+    configured: !!(config.bridgeUrl && config.apiKey),
+    agentId: config.agentId ?? 'openclaw',
     bridgeUrl: config.bridgeUrl ?? null,
-    agents: config.agents ?? [],
     config,
   };
 }
@@ -115,9 +114,9 @@ const meta = {
   detailLabel: 'A2A Protocol',
   docsPath: '/channels/a2a',
   docsLabel: 'a2a',
-  blurb: 'Communicate with other AI agents via A2A protocol.',
+  blurb: 'Communicate with other AI agents via GopherHole A2A protocol.',
   systemImage: 'bubble.left.and.bubble.right',
-  aliases: ['agent2agent'],
+  aliases: ['agent2agent', 'gopherhole'],
   order: 200,
 };
 
@@ -136,10 +135,10 @@ export const a2aPlugin: ChannelPlugin<ResolvedA2AAccount> = {
   config: {
     listAccountIds: () => [DEFAULT_ACCOUNT_ID],
     resolveAccount: (cfg, accountId) =>
-      resolveA2AAccount({ cfg: cfg as ClawdbotConfig, accountId }),
+      resolveA2AAccount({ cfg: cfg as OpenClawConfig, accountId }),
     defaultAccountId: () => DEFAULT_ACCOUNT_ID,
     setAccountEnabled: ({ cfg, enabled }) => {
-      const next = cfg as ClawdbotConfig;
+      const next = cfg as OpenClawConfig;
       return {
         ...next,
         channels: {
@@ -149,9 +148,9 @@ export const a2aPlugin: ChannelPlugin<ResolvedA2AAccount> = {
             enabled,
           },
         },
-      } as ClawdbotConfig;
+      } as OpenClawConfig;
     },
-    deleteAccount: ({ cfg }) => cfg as ClawdbotConfig,
+    deleteAccount: ({ cfg }) => cfg as OpenClawConfig,
     isConfigured: (account) => account.configured,
     describeAccount: (account): ChannelAccountSnapshot => ({
       accountId: account.accountId,
@@ -176,22 +175,22 @@ export const a2aPlugin: ChannelPlugin<ResolvedA2AAccount> = {
   messaging: {
     normalizeTarget: (target) => target?.trim() ?? '',
     targetResolver: {
-      looksLikeId: (id) => /^[a-z0-9_-]+$/i.test(id),
-      hint: '<agentId>',
+      looksLikeId: (id) => /^[a-z0-9_@-]+$/i.test(id),
+      hint: '<agentId> (e.g. @memory, @echo)',
     },
     formatTargetDisplay: ({ target }) => target ?? '',
   },
   setup: {
     resolveAccountId: ({ accountId }) => normalizeAccountId(accountId),
-    applyAccountName: ({ cfg }) => cfg as ClawdbotConfig,
+    applyAccountName: ({ cfg }) => cfg as OpenClawConfig,
     validateInput: ({ input }) => {
       if (!input.httpUrl && !input.customArgs) {
-        return 'A2A requires --http-url (bridge URL) or agents configured in config.';
+        return 'A2A requires --http-url (bridge URL) or bridgeUrl + apiKey in config.';
       }
       return null;
     },
     applyAccountConfig: ({ cfg, input }) => {
-      const next = cfg as ClawdbotConfig;
+      const next = cfg as OpenClawConfig;
       return {
         ...next,
         channels: {
@@ -202,7 +201,7 @@ export const a2aPlugin: ChannelPlugin<ResolvedA2AAccount> = {
             ...(input.httpUrl ? { bridgeUrl: input.httpUrl } : {}),
           },
         },
-      } as ClawdbotConfig;
+      } as OpenClawConfig;
     },
   },
   outbound: {
@@ -292,7 +291,7 @@ export const a2aPlugin: ChannelPlugin<ResolvedA2AAccount> = {
 
           if (!text) return;
 
-          // Route to Clawdbot's reply pipeline via gateway JSON-RPC
+          // Route to OpenClaw's reply pipeline via gateway JSON-RPC
           try {
             ctx.log?.info(`[a2a] Routing message from ${message.from}: "${text.slice(0, 100)}..."`);
             
@@ -303,43 +302,23 @@ export const a2aPlugin: ChannelPlugin<ResolvedA2AAccount> = {
 
             ctx.log?.info(`[a2a] chat.send returned: ${response ? `text=${response.text?.slice(0, 50)}...` : 'null'}`);
 
-            // Send response back to the agent
+            // Send response back to the agent via GopherHole
             if (response?.text) {
-              // If message came via GopherHole, route response back through it
-              if (agentId === 'gopherhole' && message.from) {
-                connectionManager?.sendResponseViaGopherHole(
-                  message.from,
-                  message.taskId,
-                  response.text,
-                  message.contextId
-                );
-              } else {
-                connectionManager?.sendResponse(
-                  agentId,
-                  message.taskId,
-                  response.text,
-                  message.contextId
-                );
-              }
-            }
-          } catch (err) {
-            ctx.log?.error(`[a2a] Error handling message:`, err);
-            // If message came via GopherHole, route error back through it
-            if (agentId === 'gopherhole' && message.from) {
               connectionManager?.sendResponseViaGopherHole(
                 message.from,
                 message.taskId,
-                `Error: ${(err as Error).message}`,
-                message.contextId
-              );
-            } else {
-              connectionManager?.sendResponse(
-                agentId,
-                message.taskId,
-                `Error: ${(err as Error).message}`,
+                response.text,
                 message.contextId
               );
             }
+          } catch (err) {
+            ctx.log?.error(`[a2a] Error handling message:`, err);
+            connectionManager?.sendResponseViaGopherHole(
+              message.from,
+              message.taskId,
+              `Error: ${(err as Error).message}`,
+              message.contextId
+            );
           }
         }
       });
