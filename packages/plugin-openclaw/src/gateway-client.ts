@@ -61,6 +61,7 @@ export async function connectToGateway(port = 18789): Promise<void> {
       
       // Send connect handshake
       const connectId = uuidv4();
+      
       const connectFrame = {
         type: 'req',
         id: connectId,
@@ -71,7 +72,7 @@ export async function connectToGateway(port = 18789): Promise<void> {
           client: {
             id: 'gateway-client',
             displayName: 'A2A Channel Plugin',
-            version: '0.1.0',
+            version: '0.3.4',
             platform: process.platform,
             mode: 'backend',
           },
@@ -201,7 +202,12 @@ function handleChatEvent(payload: {
     return;
   }
 
-  console.log(`[a2a] Chat event: runId=${payload.runId}, state=${payload.state}, seq=${payload.seq}, content=${JSON.stringify(payload.message?.content)?.slice(0, 200)}`);
+  // Detailed logging for debugging relay issues
+  console.log(`[a2a] Chat event: runId=${payload.runId}, state=${payload.state}, seq=${payload.seq}, role=${payload.message?.role}`);
+  
+  if (payload.state === 'delta' || payload.state === 'final') {
+    console.log(`[a2a] Chat content (${payload.state}): ${JSON.stringify(payload.message?.content)?.slice(0, 300)}`);
+  }
 
   if (payload.state === 'delta') {
     // Each delta contains the full message so far, not incremental
@@ -209,7 +215,10 @@ function handleChatEvent(payload: {
       const text = extractTextContent(payload.message.content);
       if (text) {
         pending.latestText = text;
+        console.log(`[a2a] Updated latestText (delta): "${text.slice(0, 100)}..." (len=${text.length})`);
       }
+    } else {
+      console.log(`[a2a] Skipping delta - role=${payload.message?.role}, hasContent=${!!payload.message?.content}`);
     }
   } else if (payload.state === 'final') {
     // Final message - resolve with latest text
@@ -221,14 +230,16 @@ function handleChatEvent(payload: {
       const text = extractTextContent(payload.message.content);
       if (text) {
         pending.latestText = text;
+        console.log(`[a2a] Updated latestText (final): "${text.slice(0, 100)}..." (len=${text.length})`);
       }
     }
     
-    console.log(`[a2a] Chat complete: ${pending.latestText.slice(0, 100)}...`);
+    console.log(`[a2a] Chat complete - resolving with: "${pending.latestText.slice(0, 150)}..." (total ${pending.latestText.length} chars)`);
     pending.resolve({ text: pending.latestText });
   } else if (payload.state === 'error' || payload.state === 'aborted') {
     clearTimeout(pending.timeout);
     pendingChats.delete(payload.runId);
+    console.error(`[a2a] Chat ${payload.state}: ${payload.errorMessage}`);
     pending.reject(new Error(payload.errorMessage || `Chat ${payload.state}`));
   }
 }

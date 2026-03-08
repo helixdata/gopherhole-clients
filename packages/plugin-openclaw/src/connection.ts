@@ -122,6 +122,13 @@ export class A2AConnectionManager {
     if (!this.messageHandler) return;
 
     console.log(`[a2a] Received message from ${message.from}, taskId=${message.taskId}`);
+    console.log(`[a2a] Raw message payload:`, JSON.stringify(message.payload, null, 2).slice(0, 500));
+
+    // Validate taskId - critical for response routing
+    if (!message.taskId) {
+      console.error(`[a2a] WARNING: No taskId in incoming message! Response relay will fail.`);
+      console.error(`[a2a] Full message object:`, JSON.stringify(message, null, 2));
+    }
 
     // Convert SDK message to our A2AMessage format
     const a2aMsg: A2AMessage = {
@@ -137,6 +144,8 @@ export class A2AConnectionManager {
         })),
       },
     };
+
+    console.log(`[a2a] Dispatching to messageHandler with taskId=${a2aMsg.taskId}`);
 
     this.messageHandler('gopherhole', a2aMsg).catch((err) => {
       console.error('[a2a] Error handling incoming message:', err);
@@ -230,17 +239,30 @@ export class A2AConnectionManager {
     _contextId?: string
   ): void {
     if (!this.gopherhole || !this.connected) {
-      console.warn('[a2a] Cannot send response - GopherHole not connected');
+      console.error('[a2a] Cannot send response - GopherHole not connected');
       return;
     }
 
-    console.log(`[a2a] Responding to taskId=${taskId}: ${text.slice(0, 100)}...`);
+    // Validate taskId
+    if (!taskId) {
+      console.error('[a2a] Cannot respond - taskId is null/undefined!');
+      return;
+    }
+    
+    if (taskId.startsWith('gph-')) {
+      console.error(`[a2a] Cannot respond - taskId "${taskId}" is a fallback ID (not a real task). Response will be lost!`);
+      return;
+    }
+
+    console.log(`[a2a] Responding to taskId=${taskId}: "${text.slice(0, 200)}..." (total ${text.length} chars)`);
 
     try {
       // Use SDK's respond method to complete the task
       this.gopherhole.respond(taskId, text);
+      console.log(`[a2a] respond() called successfully for taskId=${taskId}`);
     } catch (err) {
       console.error('[a2a] Failed to send response:', (err as Error).message);
+      console.error('[a2a] Error details:', err);
     }
   }
 

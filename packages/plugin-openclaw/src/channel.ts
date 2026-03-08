@@ -11,6 +11,7 @@ function normalizeAccountId(id?: string): string {
 
 import { A2AConnectionManager } from './connection.js';
 import { sendChatMessage, connectToGateway, disconnectFromGateway } from './gateway-client.js';
+import { a2aLog } from './logger.js';
 import type {
   A2AMessage,
   A2AChannelConfig,
@@ -293,28 +294,54 @@ export const a2aPlugin: ChannelPlugin<ResolvedA2AAccount> = {
 
           if (!text) return;
 
+          // Log incoming message
+          a2aLog.messageReceived(message.from, message.taskId, text);
+
+          // Validate taskId early
+          if (!message.taskId || message.taskId.startsWith('gph-')) {
+            a2aLog.error('taskid_invalid', `Invalid taskId "${message.taskId}" - response relay will fail!`, { from: message.from });
+          }
+
           // Route to OpenClaw's reply pipeline via gateway JSON-RPC
           try {
-            ctx.log?.info(`[a2a] Routing message from ${message.from}: "${text.slice(0, 100)}..."`);
-            
             // Use chat.send to route the message through the agent
             // Session key format: agent:<agentId>:<channel>:<chatId>
             const sessionKey = `agent:main:a2a:${message.from}`;
-            const response = await sendChatMessage(sessionKey, text);
+            a2aLog.messageProcessing(message.taskId, sessionKey);
+            
+            // Add A2A context so the agent knows to relay its full response
+            const a2aContext = `[A2A Request from agent "${message.from}"]\n\n${text}\n\n[Note: Your complete response will be sent back to the requesting agent. Include all relevant information in your reply.]`;
+            
+            const response = await sendChatMessage(sessionKey, a2aContext);
 
-            ctx.log?.info(`[a2a] chat.send returned: ${response ? `text=${response.text?.slice(0, 50)}...` : 'null'}`);
+            // Log captured response
+            if (response?.text) {
+              a2aLog.responseCaptured(message.taskId, response.text);
+            } else {
+              a2aLog.error('response_empty', 'No response text captured from agent', { taskId: message.taskId });
+            }
 
             // Send response back to the agent via GopherHole
-            if (response?.text) {
-              connectionManager?.sendResponseViaGopherHole(
+            if (response?.text && response.text.trim()) {
+              const sent = connectionManager?.sendResponseViaGopherHole(
                 message.from,
                 message.taskId,
                 response.text,
                 message.contextId
               );
+              a2aLog.responseSent(message.taskId || 'unknown', message.from, true);
+            } else {
+              a2aLog.error('response_relay_failed', 'No response text to relay', { taskId: message.taskId });
+              connectionManager?.sendResponseViaGopherHole(
+                message.from,
+                message.taskId,
+                `[No response generated]`,
+                message.contextId
+              );
+              a2aLog.responseSent(message.taskId || 'unknown', message.from, false);
             }
           } catch (err) {
-            ctx.log?.error(`[a2a] Error handling message:`, err);
+            a2aLog.error('handler_error', (err as Error).message, { taskId: message.taskId, stack: (err as Error).stack });
             connectionManager?.sendResponseViaGopherHole(
               message.from,
               message.taskId,
