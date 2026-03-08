@@ -47,7 +47,7 @@ export interface A2AResponse {
  *   "channels": {
  *     "a2a": {
  *       "enabled": true,
- *       "bridgeUrl": "wss://gopherhole.ai/ws",
+ *       "bridgeUrl": "wss://hub.gopherhole.ai/ws",
  *       "apiKey": "gph_your_api_key"
  *     }
  *   }
@@ -55,7 +55,7 @@ export interface A2AResponse {
  */
 export interface A2AChannelConfig {
   enabled?: boolean;
-  bridgeUrl?: string;           // WebSocket URL (default: wss://gopherhole.ai/ws)
+  bridgeUrl?: string;           // WebSocket URL (default: wss://hub.gopherhole.ai/ws)
   apiKey?: string;              // GopherHole API key (gph_...)
   agentId?: string;             // Our agent ID (default: "openclaw")
   agentName?: string;           // Display name for agent card

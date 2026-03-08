@@ -37,7 +37,7 @@ export class A2AConnectionManager {
   }
 
   private async connectToGopherHole(): Promise<void> {
-    const hubUrl = this.config.bridgeUrl || 'wss://gopherhole.ai/ws';
+    const hubUrl = this.config.bridgeUrl || 'wss://hub.gopherhole.ai/ws';
     const timeoutMs = this.config.requestTimeoutMs ?? 180000;
 
     this.gopherhole = new GopherHole({
@@ -305,7 +305,7 @@ export class A2AConnectionManager {
       return [];
     }
 
-    const hubUrl = this.config.bridgeUrl || 'wss://gopherhole.ai/ws';
+    const hubUrl = this.config.bridgeUrl || 'wss://hub.gopherhole.ai/ws';
     // Convert wss:// to https:// for API calls
     const apiBase = hubUrl.replace('wss://', 'https://').replace('/ws', '');
 

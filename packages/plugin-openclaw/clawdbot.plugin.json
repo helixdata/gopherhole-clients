@@ -1,0 +1,14 @@
+{
+  "id": "gopherhole_openclaw_a2a",
+  "channels": ["a2a"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabled": {
+        "type": "boolean",
+        "description": "Enable the plugin"
+      }
+    }
+  }
+}

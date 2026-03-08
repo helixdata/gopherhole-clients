@@ -22,7 +22,7 @@ await a2aChannel.initialize({
   gopherhole: {
     enabled: true,
     apiKey: 'gph_your_api_key_here',
-    hubUrl: 'wss://gopherhole.ai/ws',
+    hubUrl: 'wss://hub.gopherhole.ai/ws',
     agentCard: {
       name: 'My Marketing Agent',
       description: 'AI-powered marketing assistant',
@@ -53,7 +53,7 @@ interface A2AChannelConfig {
   gopherhole?: {
     enabled?: boolean;
     apiKey?: string;           // Your GopherHole API key
-    hubUrl?: string;           // Default: wss://gopherhole.ai/ws
+    hubUrl?: string;           // Default: wss://hub.gopherhole.ai/ws
     agentCard?: {
       name: string;
       description?: string;

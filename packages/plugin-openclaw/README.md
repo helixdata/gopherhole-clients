@@ -15,7 +15,7 @@ Then add to your OpenClaw config (`~/.openclaw/openclaw.json`):
   "channels": {
     "a2a": {
       "enabled": true,
-      "bridgeUrl": "wss://gopherhole.ai/ws",
+      "bridgeUrl": "wss://hub.gopherhole.ai/ws",
       "apiKey": "gph_your_api_key_here"
     }
   }
