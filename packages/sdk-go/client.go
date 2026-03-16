@@ -54,10 +54,17 @@ func WithReconnectDelay(d time.Duration) ClientOption {
 	}
 }
 
-// WithMaxReconnectAttempts sets the maximum reconnection attempts.
+// WithMaxReconnectAttempts sets the maximum reconnection attempts (0 = infinite).
 func WithMaxReconnectAttempts(n int) ClientOption {
 	return func(c *Client) {
 		c.maxReconnectAttempts = n
+	}
+}
+
+// WithMaxReconnectDelay sets the maximum delay between reconnection attempts (caps exponential backoff).
+func WithMaxReconnectDelay(d time.Duration) ClientOption {
+	return func(c *Client) {
+		c.maxReconnectDelay = d
 	}
 }
 
@@ -91,6 +98,9 @@ type TaskUpdateHandler func(Task)
 // ErrorHandler is called when an error occurs.
 type ErrorHandler func(error)
 
+// ReconnectingHandler is called when a reconnection attempt is scheduled.
+type ReconnectingHandler func(attempt int, delay time.Duration)
+
 // Client is a GopherHole SDK client.
 type Client struct {
 	apiKey               string
@@ -98,6 +108,7 @@ type Client struct {
 	apiURL               string
 	autoReconnect        bool
 	reconnectDelay       time.Duration
+	maxReconnectDelay    time.Duration
 	maxReconnectAttempts int
 	requestTimeout       time.Duration
 	httpClient           *http.Client
@@ -111,11 +122,12 @@ type Client struct {
 	reconnectAttempts int
 
 	// Event handlers
-	onMessage    MessageHandler
-	onTaskUpdate TaskUpdateHandler
-	onError      ErrorHandler
-	onConnect    func()
-	onDisconnect func(reason string)
+	onMessage      MessageHandler
+	onTaskUpdate   TaskUpdateHandler
+	onError        ErrorHandler
+	onConnect      func()
+	onDisconnect   func(reason string)
+	onReconnecting ReconnectingHandler
 
 	// Lifecycle
 	ctx        context.Context
@@ -132,7 +144,8 @@ func New(apiKey string, opts ...ClientOption) *Client {
 		apiURL:               DefaultAPIURL,
 		autoReconnect:        true,
 		reconnectDelay:       time.Second,
-		maxReconnectAttempts: 10,
+		maxReconnectDelay:    5 * time.Minute,
+		maxReconnectAttempts: 0, // 0 = infinite
 		requestTimeout:       30 * time.Second,
 		done:                 make(chan struct{}),
 	}
@@ -179,6 +192,11 @@ func (c *Client) OnConnect(h func()) {
 // OnDisconnect sets the handler for disconnection events.
 func (c *Client) OnDisconnect(h func(reason string)) {
 	c.onDisconnect = h
+}
+
+// OnReconnecting sets the handler for reconnection attempts.
+func (c *Client) OnReconnecting(h ReconnectingHandler) {
+	c.onReconnecting = h
 }
 
 // Connect establishes a WebSocket connection to the hub.
@@ -746,12 +764,26 @@ func (c *Client) pingLoop() {
 }
 
 func (c *Client) maybeReconnect() {
-	if !c.autoReconnect || c.reconnectAttempts >= c.maxReconnectAttempts {
+	// Check if we should reconnect: enabled AND (infinite OR under max attempts)
+	shouldReconnect := c.autoReconnect &&
+		(c.maxReconnectAttempts == 0 || c.reconnectAttempts < c.maxReconnectAttempts)
+
+	if !shouldReconnect {
 		return
 	}
 
 	c.reconnectAttempts++
-	delay := c.reconnectDelay * time.Duration(1<<(c.reconnectAttempts-1)) // Exponential backoff
+	// Exponential backoff capped at maxReconnectDelay
+	uncappedDelay := c.reconnectDelay * time.Duration(1<<(c.reconnectAttempts-1))
+	delay := uncappedDelay
+	if delay > c.maxReconnectDelay {
+		delay = c.maxReconnectDelay
+	}
+
+	// Emit reconnecting event
+	if c.onReconnecting != nil {
+		c.onReconnecting(c.reconnectAttempts, delay)
+	}
 
 	time.AfterFunc(delay, func() {
 		if err := c.Connect(context.Background()); err != nil {

@@ -62,7 +62,8 @@ class GopherHole:
         agent_card: Optional[dict] = None,
         auto_reconnect: bool = True,
         reconnect_delay: float = 1.0,
-        max_reconnect_attempts: int = 10,
+        max_reconnect_delay: float = 300.0,
+        max_reconnect_attempts: int = 0,
         request_timeout: float = 30.0,
     ):
         """
@@ -76,7 +77,8 @@ class GopherHole:
             agent_card: Agent card to register on connect (name, description, skills).
             auto_reconnect: Whether to auto-reconnect on disconnect.
             reconnect_delay: Initial delay between reconnect attempts (seconds).
-            max_reconnect_attempts: Maximum number of reconnect attempts.
+            max_reconnect_delay: Maximum delay between reconnect attempts (seconds, default 300 = 5 min).
+            max_reconnect_attempts: Maximum number of reconnect attempts, 0 = infinite (default: 0).
             request_timeout: Default timeout for HTTP requests (seconds).
         """
         self.api_key = api_key or os.environ.get("GOPHERHOLE_API_KEY")
@@ -90,6 +92,7 @@ class GopherHole:
         self.agent_card = agent_card
         self.auto_reconnect = auto_reconnect
         self.reconnect_delay = reconnect_delay
+        self.max_reconnect_delay = max_reconnect_delay
         self.max_reconnect_attempts = max_reconnect_attempts
         self.request_timeout = request_timeout
         
@@ -103,6 +106,7 @@ class GopherHole:
         # Event handlers
         self._on_connect: Optional[Callable[[], Any]] = None
         self._on_disconnect: Optional[Callable[[str], Any]] = None
+        self._on_reconnecting: Optional[Callable[[int, float], Any]] = None
         self._on_message: Optional[Callable[[Message], Any]] = None
         self._on_task_update: Optional[Callable[[Task], Any]] = None
         self._on_error: Optional[Callable[[Exception], Any]] = None
@@ -131,6 +135,11 @@ class GopherHole:
     def on_disconnect(self, func: Callable[[str], Any]) -> Callable[[str], Any]:
         """Register a handler for disconnection events."""
         self._on_disconnect = func
+        return func
+
+    def on_reconnecting(self, func: Callable[[int, float], Any]) -> Callable[[int, float], Any]:
+        """Register a handler for reconnection attempts. Receives (attempt, delay_seconds)."""
+        self._on_reconnecting = func
         return func
 
     def on_message(self, func: Callable[[Message], Any]) -> Callable[[Message], Any]:
@@ -218,6 +227,13 @@ class GopherHole:
             await self._http.aclose()
             self._http = None
 
+    def _should_reconnect(self) -> bool:
+        """Check if we should attempt reconnection."""
+        if not self.auto_reconnect:
+            return False
+        # 0 = infinite retries, otherwise check against max
+        return self.max_reconnect_attempts == 0 or self._reconnect_attempts < self.max_reconnect_attempts
+
     async def run_forever(self) -> None:
         """Run the message loop forever."""
         self._running = True
@@ -225,7 +241,7 @@ class GopherHole:
         while self._running:
             try:
                 if not self.connected:
-                    if self.auto_reconnect and self._reconnect_attempts < self.max_reconnect_attempts:
+                    if self._should_reconnect():
                         await self._reconnect()
                     else:
                         break
@@ -239,7 +255,7 @@ class GopherHole:
                     if asyncio.iscoroutine(result):
                         await result
                 
-                if self.auto_reconnect and self._reconnect_attempts < self.max_reconnect_attempts:
+                if self._should_reconnect():
                     await self._reconnect()
                 else:
                     break
@@ -310,11 +326,20 @@ class GopherHole:
                 break
 
     async def _reconnect(self) -> None:
-        """Attempt to reconnect to the hub."""
+        """Attempt to reconnect to the hub with exponential backoff."""
         self._reconnect_attempts += 1
-        delay = self.reconnect_delay * (2 ** (self._reconnect_attempts - 1))
+        # Exponential backoff capped at max_reconnect_delay
+        uncapped_delay = self.reconnect_delay * (2 ** (self._reconnect_attempts - 1))
+        delay = min(uncapped_delay, self.max_reconnect_delay)
         
         logger.info(f"Reconnecting in {delay:.1f}s (attempt {self._reconnect_attempts})")
+        
+        # Emit reconnecting event
+        if self._on_reconnecting:
+            result = self._on_reconnecting(self._reconnect_attempts, delay)
+            if asyncio.iscoroutine(result):
+                await result
+        
         await asyncio.sleep(delay)
         
         try:

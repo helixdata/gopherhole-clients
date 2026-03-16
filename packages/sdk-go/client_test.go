@@ -29,8 +29,11 @@ func TestNew(t *testing.T) {
 		if !client.autoReconnect {
 			t.Error("expected autoReconnect to be true")
 		}
-		if client.maxReconnectAttempts != 10 {
-			t.Errorf("expected maxReconnectAttempts 10, got %d", client.maxReconnectAttempts)
+		if client.maxReconnectAttempts != 0 {
+			t.Errorf("expected maxReconnectAttempts 0 (infinite), got %d", client.maxReconnectAttempts)
+		}
+		if client.maxReconnectDelay != 5*time.Minute {
+			t.Errorf("expected maxReconnectDelay 5m, got %v", client.maxReconnectDelay)
 		}
 	})
 
