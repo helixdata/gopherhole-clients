@@ -26,11 +26,13 @@ export interface GopherHoleOptions {
   hubUrl?: string;
   /** Agent card to register on connect */
   agentCard?: AgentCardConfig;
-  /** Auto-reconnect on disconnect */
+  /** Auto-reconnect on disconnect (default: true) */
   autoReconnect?: boolean;
-  /** Reconnect delay in ms */
+  /** Initial reconnect delay in ms (default: 1000) */
   reconnectDelay?: number;
-  /** Max reconnect attempts */
+  /** Maximum reconnect delay in ms, caps exponential backoff (default: 300000 = 5 min) */
+  maxReconnectDelay?: number;
+  /** Max reconnect attempts, 0 = infinite (default: 0) */
   maxReconnectAttempts?: number;
   /** Default request timeout in ms (default: 30000) */
   requestTimeout?: number;
@@ -163,6 +165,7 @@ export interface SendAndWaitOptions extends SendOptions {
 type EventMap = {
   connect: () => void;
   disconnect: (reason: string) => void;
+  reconnecting: (info: { attempt: number; delayMs: number }) => void;
   error: (error: Error) => void;
   message: (message: Message) => void;
   taskUpdate: (task: Task) => void;
@@ -178,6 +181,7 @@ export class GopherHole extends EventEmitter<EventMap> {
   private ws: WebSocket | null = null;
   private autoReconnect: boolean;
   private reconnectDelay: number;
+  private maxReconnectDelay: number;
   private maxReconnectAttempts: number;
   private requestTimeout: number;
   private messageTimeout: number;
@@ -200,7 +204,8 @@ export class GopherHole extends EventEmitter<EventMap> {
     this.agentCard = options.agentCard || null;
     this.autoReconnect = options.autoReconnect ?? true;
     this.reconnectDelay = options.reconnectDelay ?? 1000;
-    this.maxReconnectAttempts = options.maxReconnectAttempts ?? 10;
+    this.maxReconnectDelay = options.maxReconnectDelay ?? 300000; // 5 min cap
+    this.maxReconnectAttempts = options.maxReconnectAttempts ?? 0; // 0 = infinite
     this.requestTimeout = options.requestTimeout ?? 30000;
     this.messageTimeout = options.messageTimeout ?? 30000;
   }
@@ -250,7 +255,11 @@ export class GopherHole extends EventEmitter<EventMap> {
         const reason = event.reason || 'Connection closed';
         this.emit('disconnect', reason);
         
-        if (this.autoReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
+        // Reconnect if enabled and (infinite retries OR under max attempts)
+        const shouldReconnect = this.autoReconnect && 
+          (this.maxReconnectAttempts === 0 || this.reconnectAttempts < this.maxReconnectAttempts);
+        
+        if (shouldReconnect) {
           this.scheduleReconnect();
         }
       };
@@ -559,13 +568,17 @@ export class GopherHole extends EventEmitter<EventMap> {
   }
 
   /**
-   * Schedule reconnection
+   * Schedule reconnection with exponential backoff (capped at maxReconnectDelay)
    */
   private scheduleReconnect(): void {
     if (this.reconnectTimer) return;
 
     this.reconnectAttempts++;
-    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
+    // Exponential backoff: 1s, 2s, 4s, 8s, ... capped at maxReconnectDelay
+    const uncappedDelay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
+    const delay = Math.min(uncappedDelay, this.maxReconnectDelay);
+
+    this.emit('reconnecting', { attempt: this.reconnectAttempts, delayMs: delay });
 
     this.reconnectTimer = setTimeout(async () => {
       this.reconnectTimer = null;

@@ -45,7 +45,8 @@ export class A2AConnectionManager {
       hubUrl,
       autoReconnect: true,
       reconnectDelay: this.config.reconnectIntervalMs ?? 5000,
-      maxReconnectAttempts: 20,
+      maxReconnectDelay: 300000, // 5 min cap on backoff
+      // maxReconnectAttempts defaults to 0 (infinite) in SDK
       requestTimeout: timeoutMs,
       messageTimeout: timeoutMs,
       agentCard: this.config.agentCard ?? {
@@ -98,6 +99,10 @@ export class A2AConnectionManager {
     this.gopherhole.on('disconnect', (reason) => {
       this.connected = false;
       console.log(`[a2a] Disconnected from GopherHole: ${reason}`);
+    });
+
+    this.gopherhole.on('reconnecting', ({ attempt, delayMs }) => {
+      console.log(`[a2a] Reconnecting to GopherHole (attempt ${attempt}, waiting ${delayMs}ms)...`);
     });
 
     this.gopherhole.on('error', (error) => {
