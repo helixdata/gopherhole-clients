@@ -189,6 +189,209 @@ async function main() {
           };
         }
 
+        // ============================================================
+        // WORKSPACE TOOLS
+        // ============================================================
+
+        case 'workspace_list': {
+          const result = await client.workspaceList();
+          
+          if (result.workspaces.length === 0) {
+            return {
+              content: [{ type: 'text', text: 'You are not a member of any workspaces yet.' }],
+            };
+          }
+
+          const list = result.workspaces.map(w => 
+            `• **${w.name}** (${w.id})\n  ${w.description || 'No description'}\n  Role: ${w.my_role || 'unknown'} | Members: ${w.member_count || '?'} | Memories: ${w.memory_count || '?'}`
+          ).join('\n\n');
+          
+          return {
+            content: [{ type: 'text', text: `Your workspaces:\n\n${list}` }],
+          };
+        }
+
+        case 'workspace_create': {
+          const wsName = args?.name as string;
+          const description = args?.description as string | undefined;
+          
+          if (!wsName) {
+            return {
+              content: [{ type: 'text', text: 'Error: name is required' }],
+              isError: true,
+            };
+          }
+
+          const result = await client.workspaceCreate(wsName, description);
+          
+          return {
+            content: [{ type: 'text', text: `Workspace created!\n\nID: ${result.workspace.id}\nName: ${result.workspace.name}` }],
+          };
+        }
+
+        case 'workspace_members_add': {
+          const workspaceId = args?.workspace_id as string;
+          const agentId = args?.agent_id as string;
+          const role = (args?.role as 'read' | 'write' | 'admin') || 'write';
+          
+          if (!workspaceId || !agentId) {
+            return {
+              content: [{ type: 'text', text: 'Error: workspace_id and agent_id are required' }],
+              isError: true,
+            };
+          }
+
+          await client.workspaceMembersAdd(workspaceId, agentId, role);
+          
+          return {
+            content: [{ type: 'text', text: `Added agent ${agentId} to workspace with role: ${role}` }],
+          };
+        }
+
+        case 'workspace_members_list': {
+          const workspaceId = args?.workspace_id as string;
+          
+          if (!workspaceId) {
+            return {
+              content: [{ type: 'text', text: 'Error: workspace_id is required' }],
+              isError: true,
+            };
+          }
+
+          const result = await client.workspaceMembersList(workspaceId);
+          
+          const list = result.members.map(m => 
+            `• ${m.agent_name || m.agent_id} (${m.role})`
+          ).join('\n');
+          
+          return {
+            content: [{ type: 'text', text: `Workspace members:\n\n${list}` }],
+          };
+        }
+
+        case 'workspace_store': {
+          const workspaceId = args?.workspace_id as string;
+          const content = args?.content as string;
+          const memType = args?.type as 'fact' | 'decision' | 'preference' | 'todo' | 'context' | 'reference' | undefined;
+          const tags = args?.tags as string[] | undefined;
+          
+          if (!workspaceId || !content) {
+            return {
+              content: [{ type: 'text', text: 'Error: workspace_id and content are required' }],
+              isError: true,
+            };
+          }
+
+          const result = await client.workspaceStore({
+            workspace_id: workspaceId,
+            content,
+            type: memType,
+            tags,
+          });
+          
+          return {
+            content: [{ type: 'text', text: `Memory stored!\n\nID: ${result.memory.id}\nType: ${result.memory.type}` }],
+          };
+        }
+
+        case 'workspace_query': {
+          const workspaceId = args?.workspace_id as string;
+          const query = args?.query as string;
+          const memType = args?.type as string | undefined;
+          const limit = args?.limit as number | undefined;
+          
+          if (!workspaceId || !query) {
+            return {
+              content: [{ type: 'text', text: 'Error: workspace_id and query are required' }],
+              isError: true,
+            };
+          }
+
+          const result = await client.workspaceQuery({
+            workspace_id: workspaceId,
+            query,
+            type: memType,
+            limit,
+          });
+          
+          if (result.memories.length === 0) {
+            return {
+              content: [{ type: 'text', text: 'No memories found matching your query.' }],
+            };
+          }
+
+          const list = result.memories.map(m => 
+            `• [${m.type}] ${m.content.substring(0, 200)}${m.content.length > 200 ? '...' : ''}\n  Similarity: ${((m.similarity || 0) * 100).toFixed(0)}% | Tags: ${m.tags.join(', ') || 'none'}`
+          ).join('\n\n');
+          
+          return {
+            content: [{ type: 'text', text: `Found ${result.count} memories:\n\n${list}` }],
+          };
+        }
+
+        case 'workspace_memories': {
+          const workspaceId = args?.workspace_id as string;
+          const limit = args?.limit as number || 20;
+          const offset = args?.offset as number || 0;
+          
+          if (!workspaceId) {
+            return {
+              content: [{ type: 'text', text: 'Error: workspace_id is required' }],
+              isError: true,
+            };
+          }
+
+          const result = await client.workspaceMemories({
+            workspace_id: workspaceId,
+            limit,
+            offset,
+          });
+          
+          if (result.memories.length === 0) {
+            return {
+              content: [{ type: 'text', text: 'No memories in this workspace.' }],
+            };
+          }
+
+          const list = result.memories.map(m => 
+            `• [${m.type}] ${m.content.substring(0, 150)}${m.content.length > 150 ? '...' : ''}`
+          ).join('\n\n');
+          
+          return {
+            content: [{ type: 'text', text: `Showing ${result.count} of ${result.total} memories:\n\n${list}` }],
+          };
+        }
+
+        case 'workspace_forget': {
+          const workspaceId = args?.workspace_id as string;
+          const memoryId = args?.id as string | undefined;
+          const query = args?.query as string | undefined;
+          
+          if (!workspaceId) {
+            return {
+              content: [{ type: 'text', text: 'Error: workspace_id is required' }],
+              isError: true,
+            };
+          }
+
+          if (!memoryId && !query) {
+            return {
+              content: [{ type: 'text', text: 'Error: either id or query is required' }],
+              isError: true,
+            };
+          }
+
+          const result = await client.workspaceForget({
+            workspace_id: workspaceId,
+            id: memoryId,
+            query,
+          });
+          
+          return {
+            content: [{ type: 'text', text: `Deleted ${result.deleted} memory/memories.` }],
+          };
+        }
+
         default:
           return {
             content: [{ type: 'text', text: `Unknown tool: ${name}` }],

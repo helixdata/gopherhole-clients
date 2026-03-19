@@ -134,12 +134,180 @@ export const AGENT_TOOLS: Tool[] = [
 ];
 
 /**
+ * Phase 3 Tools - Workspaces (Multi-Agent Collaboration)
+ */
+export const WORKSPACE_TOOLS: Tool[] = [
+  {
+    name: 'workspace_list',
+    description: 'List workspaces you are a member of. Workspaces are shared memory spaces for multi-agent collaboration.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {},
+    },
+  },
+  {
+    name: 'workspace_create',
+    description: 'Create a new workspace for collaboration with other agents.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        name: {
+          type: 'string',
+          description: 'Name of the workspace',
+        },
+        description: {
+          type: 'string',
+          description: 'Optional description of the workspace purpose',
+        },
+      },
+      required: ['name'],
+    },
+  },
+  {
+    name: 'workspace_members_add',
+    description: 'Add an agent to a workspace (requires admin role).',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        workspace_id: {
+          type: 'string',
+          description: 'ID of the workspace',
+        },
+        agent_id: {
+          type: 'string',
+          description: 'ID of the agent to add',
+        },
+        role: {
+          type: 'string',
+          enum: ['read', 'write', 'admin'],
+          description: 'Role for the new member (default: write)',
+        },
+      },
+      required: ['workspace_id', 'agent_id'],
+    },
+  },
+  {
+    name: 'workspace_members_list',
+    description: 'List members of a workspace.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        workspace_id: {
+          type: 'string',
+          description: 'ID of the workspace',
+        },
+      },
+      required: ['workspace_id'],
+    },
+  },
+  {
+    name: 'workspace_store',
+    description: 'Store a memory in a shared workspace. Other workspace members can query this memory.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        workspace_id: {
+          type: 'string',
+          description: 'ID of the workspace',
+        },
+        content: {
+          type: 'string',
+          description: 'Content to store',
+        },
+        type: {
+          type: 'string',
+          enum: ['fact', 'decision', 'preference', 'todo', 'context', 'reference'],
+          description: 'Type of memory (default: fact)',
+        },
+        tags: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Optional tags for categorization',
+        },
+      },
+      required: ['workspace_id', 'content'],
+    },
+  },
+  {
+    name: 'workspace_query',
+    description: 'Search workspace memories using semantic search. Returns memories matching your query.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        workspace_id: {
+          type: 'string',
+          description: 'ID of the workspace',
+        },
+        query: {
+          type: 'string',
+          description: 'Search query',
+        },
+        type: {
+          type: 'string',
+          description: 'Optional filter by memory type',
+        },
+        limit: {
+          type: 'number',
+          description: 'Maximum results to return (default: 10)',
+        },
+      },
+      required: ['workspace_id', 'query'],
+    },
+  },
+  {
+    name: 'workspace_memories',
+    description: 'List all memories in a workspace (non-semantic browse).',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        workspace_id: {
+          type: 'string',
+          description: 'ID of the workspace',
+        },
+        limit: {
+          type: 'number',
+          description: 'Maximum results (default: 20)',
+        },
+        offset: {
+          type: 'number',
+          description: 'Pagination offset',
+        },
+      },
+      required: ['workspace_id'],
+    },
+  },
+  {
+    name: 'workspace_forget',
+    description: 'Delete memories from a workspace by ID or semantic query.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        workspace_id: {
+          type: 'string',
+          description: 'ID of the workspace',
+        },
+        id: {
+          type: 'string',
+          description: 'Specific memory ID to delete',
+        },
+        query: {
+          type: 'string',
+          description: 'Or delete memories matching this query',
+        },
+      },
+      required: ['workspace_id'],
+    },
+  },
+];
+
+/**
  * All tools combined
  */
 export const ALL_TOOLS: Tool[] = [
   ...MEMORY_TOOLS,
   ...EXTENDED_MEMORY_TOOLS,
   ...AGENT_TOOLS,
+  ...WORKSPACE_TOOLS,
 ];
 
 /**

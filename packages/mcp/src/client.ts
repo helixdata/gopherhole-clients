@@ -240,4 +240,135 @@ export class GopherHoleClient {
       apiUrl: process.env.GOPHERHOLE_API_URL,
     });
   }
+
+  // ============================================================
+  // WORKSPACE METHODS
+  // ============================================================
+
+  /**
+   * List workspaces this agent is a member of
+   */
+  async workspaceList(): Promise<{ workspaces: Workspace[] }> {
+    return this.rpc('x-gopherhole/workspace.list', {});
+  }
+
+  /**
+   * Create a new workspace
+   */
+  async workspaceCreate(name: string, description?: string): Promise<{ workspace: Workspace }> {
+    return this.rpc('x-gopherhole/workspace.create', { name, description });
+  }
+
+  /**
+   * Delete a workspace (must be owner)
+   */
+  async workspaceDelete(workspaceId: string): Promise<{ success: boolean }> {
+    return this.rpc('x-gopherhole/workspace.delete', { workspace_id: workspaceId });
+  }
+
+  /**
+   * Add an agent to a workspace
+   */
+  async workspaceMembersAdd(workspaceId: string, agentId: string, role: 'read' | 'write' | 'admin' = 'write'): Promise<{ success: boolean }> {
+    return this.rpc('x-gopherhole/workspace.members.add', { workspace_id: workspaceId, agent_id: agentId, role });
+  }
+
+  /**
+   * Remove an agent from a workspace
+   */
+  async workspaceMembersRemove(workspaceId: string, agentId: string): Promise<{ success: boolean }> {
+    return this.rpc('x-gopherhole/workspace.members.remove', { workspace_id: workspaceId, agent_id: agentId });
+  }
+
+  /**
+   * List workspace members
+   */
+  async workspaceMembersList(workspaceId: string): Promise<{ members: WorkspaceMember[] }> {
+    return this.rpc('x-gopherhole/workspace.members.list', { workspace_id: workspaceId });
+  }
+
+  /**
+   * Store a memory in a workspace
+   */
+  async workspaceStore(params: {
+    workspace_id: string;
+    content: string;
+    type?: 'fact' | 'decision' | 'preference' | 'todo' | 'context' | 'reference';
+    tags?: string[];
+  }): Promise<{ memory: WorkspaceMemory }> {
+    return this.rpc('x-gopherhole/workspace.store', {
+      workspace_id: params.workspace_id,
+      content: params.content,
+      type: params.type || 'fact',
+      tags: params.tags,
+    });
+  }
+
+  /**
+   * Query workspace memories with semantic search
+   */
+  async workspaceQuery(params: {
+    workspace_id: string;
+    query: string;
+    type?: string;
+    limit?: number;
+    tags?: string[];
+  }): Promise<{ memories: WorkspaceMemory[]; count: number }> {
+    return this.rpc('x-gopherhole/workspace.query', params);
+  }
+
+  /**
+   * List memories in a workspace (non-semantic)
+   */
+  async workspaceMemories(params: {
+    workspace_id: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ memories: WorkspaceMemory[]; count: number; total: number }> {
+    return this.rpc('x-gopherhole/workspace.memories', params);
+  }
+
+  /**
+   * Delete memories from a workspace
+   */
+  async workspaceForget(params: {
+    workspace_id: string;
+    id?: string;
+    query?: string;
+  }): Promise<{ deleted: number }> {
+    return this.rpc('x-gopherhole/workspace.forget', params);
+  }
+}
+
+// Workspace types
+export interface Workspace {
+  id: string;
+  owner_agent_id: string;
+  name: string;
+  description: string | null;
+  created_at: number;
+  updated_at: number;
+  member_count?: number;
+  memory_count?: number;
+  my_role?: 'read' | 'write' | 'admin';
+}
+
+export interface WorkspaceMember {
+  agent_id: string;
+  agent_name?: string;
+  role: 'read' | 'write' | 'admin';
+  added_at: number;
+}
+
+export interface WorkspaceMemory {
+  id: string;
+  workspace_id: string;
+  content: string;
+  type: string;
+  tags: string[];
+  links: string[];
+  similarity?: number;
+  created_at: number;
+  created_by: string | null;
+  updated_at?: number;
 }
