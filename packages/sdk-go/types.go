@@ -296,3 +296,112 @@ type wsMessage struct {
 	AgentID   string          `json:"agentId,omitempty"`
 	Timestamp int64           `json:"timestamp,omitempty"`
 }
+
+// ============================================================
+// WORKSPACE TYPES (GopherHole Extension)
+// ============================================================
+
+// MemoryType represents the type of a workspace memory.
+type MemoryType string
+
+const (
+	MemoryTypeFact       MemoryType = "fact"
+	MemoryTypeDecision   MemoryType = "decision"
+	MemoryTypePreference MemoryType = "preference"
+	MemoryTypeTodo       MemoryType = "todo"
+	MemoryTypeContext    MemoryType = "context"
+	MemoryTypeReference  MemoryType = "reference"
+)
+
+// WorkspaceRole represents a member's role in a workspace.
+type WorkspaceRole string
+
+const (
+	WorkspaceRoleRead  WorkspaceRole = "read"
+	WorkspaceRoleWrite WorkspaceRole = "write"
+	WorkspaceRoleAdmin WorkspaceRole = "admin"
+)
+
+// Workspace represents a shared workspace for agent collaboration.
+type Workspace struct {
+	ID           string        `json:"id"`
+	OwnerAgentID string        `json:"owner_agent_id"`
+	Name         string        `json:"name"`
+	Description  string        `json:"description,omitempty"`
+	CreatedAt    int64         `json:"created_at"`
+	UpdatedAt    int64         `json:"updated_at"`
+	MemberCount  int           `json:"member_count,omitempty"`
+	MemoryCount  int           `json:"memory_count,omitempty"`
+	MyRole       WorkspaceRole `json:"my_role,omitempty"`
+}
+
+// WorkspaceMember represents a member of a workspace.
+type WorkspaceMember struct {
+	AgentID   string        `json:"agent_id"`
+	AgentName string        `json:"agent_name,omitempty"`
+	Role      WorkspaceRole `json:"role"`
+	AddedAt   int64         `json:"added_at"`
+}
+
+// WorkspaceMemory represents a memory stored in a workspace.
+type WorkspaceMemory struct {
+	ID           string     `json:"id"`
+	WorkspaceID  string     `json:"workspace_id"`
+	Content      string     `json:"content"`
+	Type         MemoryType `json:"type"`
+	Tags         []string   `json:"tags"`
+	Links        []string   `json:"links"`
+	Similarity   float64    `json:"similarity,omitempty"`
+	Confidence   float64    `json:"confidence,omitempty"`
+	SourceTaskID string     `json:"source_task_id,omitempty"`
+	CreatedAt    int64      `json:"created_at"`
+	CreatedBy    string     `json:"created_by,omitempty"`
+	UpdatedAt    int64      `json:"updated_at,omitempty"`
+	UpdatedBy    string     `json:"updated_by,omitempty"`
+}
+
+// WorkspaceStoreParams contains parameters for storing a memory.
+type WorkspaceStoreParams struct {
+	WorkspaceID  string     `json:"workspace_id"`
+	Content      string     `json:"content"`
+	Type         MemoryType `json:"type"`
+	Tags         []string   `json:"tags,omitempty"`
+	Links        []string   `json:"links,omitempty"`
+	SourceTaskID string     `json:"source_task_id,omitempty"`
+	Confidence   float64    `json:"confidence,omitempty"`
+}
+
+// WorkspaceQueryParams contains parameters for querying memories.
+type WorkspaceQueryParams struct {
+	WorkspaceID string     `json:"workspace_id"`
+	Query       string     `json:"query"`
+	Type        MemoryType `json:"type,omitempty"`
+	Limit       int        `json:"limit,omitempty"`
+	Threshold   float64    `json:"threshold,omitempty"`
+	Tags        []string   `json:"tags,omitempty"`
+}
+
+// WorkspaceUpdateParams contains parameters for updating a memory.
+type WorkspaceUpdateParams struct {
+	WorkspaceID string     `json:"workspace_id"`
+	ID          string     `json:"id"`
+	Content     string     `json:"content,omitempty"`
+	Type        MemoryType `json:"type,omitempty"`
+	Tags        []string   `json:"tags,omitempty"`
+}
+
+// WorkspaceListMemoriesParams contains parameters for listing memories.
+type WorkspaceListMemoriesParams struct {
+	WorkspaceID string     `json:"workspace_id"`
+	Limit       int        `json:"limit,omitempty"`
+	Offset      int        `json:"offset,omitempty"`
+	Type        MemoryType `json:"type,omitempty"`
+	Tags        []string   `json:"tags,omitempty"`
+}
+
+// WorkspaceMemoriesResult contains the result of listing workspace memories.
+type WorkspaceMemoriesResult struct {
+	Memories []WorkspaceMemory `json:"memories"`
+	Count    int               `json:"count"`
+	Total    int               `json:"total"`
+}

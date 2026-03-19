@@ -17,6 +17,7 @@ from gopherhole.types import (
     AgentInfoResult,
     Artifact,
     DiscoverResult,
+    MemoryType,
     Message,
     MessagePayload,
     PublicAgent,
@@ -25,6 +26,13 @@ from gopherhole.types import (
     TaskListResult,
     TaskStatus,
     TextPart,
+    Workspace,
+    WorkspaceListResult,
+    WorkspaceMember,
+    WorkspaceMembersResult,
+    WorkspaceMemoriesResult,
+    WorkspaceMemory,
+    WorkspaceQueryResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -832,6 +840,253 @@ class GopherHole:
             return agent
         
         return None
+
+    # ============================================================
+    # WORKSPACE METHODS (GopherHole Extension)
+    # ============================================================
+
+    async def workspace_create(
+        self, name: str, description: Optional[str] = None
+    ) -> Workspace:
+        """
+        Create a new workspace.
+        
+        Args:
+            name: Workspace name.
+            description: Optional description.
+        
+        Returns:
+            The created workspace.
+        """
+        result = await self._rpc(
+            "x-gopherhole/workspace.create",
+            {"name": name, "description": description},
+        )
+        return Workspace(**result["workspace"])
+
+    async def workspace_get(self, workspace_id: str) -> Workspace:
+        """Get workspace info by ID."""
+        result = await self._rpc(
+            "x-gopherhole/workspace.get",
+            {"workspace_id": workspace_id},
+        )
+        return Workspace(**result["workspace"])
+
+    async def workspace_delete(self, workspace_id: str) -> bool:
+        """Delete a workspace (must be owner)."""
+        result = await self._rpc(
+            "x-gopherhole/workspace.delete",
+            {"workspace_id": workspace_id},
+        )
+        return result.get("success", False)
+
+    async def workspace_list(self) -> list[Workspace]:
+        """List workspaces this agent is a member of."""
+        result = await self._rpc("x-gopherhole/workspace.list", {})
+        return [Workspace(**w) for w in result.get("workspaces", [])]
+
+    async def workspace_members_add(
+        self,
+        workspace_id: str,
+        agent_id: str,
+        role: str = "write",
+    ) -> dict:
+        """Add an agent to a workspace (admin only)."""
+        return await self._rpc(
+            "x-gopherhole/workspace.members.add",
+            {"workspace_id": workspace_id, "agent_id": agent_id, "role": role},
+        )
+
+    async def workspace_members_remove(
+        self, workspace_id: str, agent_id: str
+    ) -> dict:
+        """Remove an agent from a workspace (admin only)."""
+        return await self._rpc(
+            "x-gopherhole/workspace.members.remove",
+            {"workspace_id": workspace_id, "agent_id": agent_id},
+        )
+
+    async def workspace_members_list(
+        self, workspace_id: str
+    ) -> list[WorkspaceMember]:
+        """List workspace members."""
+        result = await self._rpc(
+            "x-gopherhole/workspace.members.list",
+            {"workspace_id": workspace_id},
+        )
+        return [WorkspaceMember(**m) for m in result.get("members", [])]
+
+    async def workspace_store(
+        self,
+        workspace_id: str,
+        content: str,
+        type: str = "fact",
+        tags: Optional[list[str]] = None,
+        links: Optional[list[str]] = None,
+        source_task_id: Optional[str] = None,
+        confidence: Optional[float] = None,
+    ) -> WorkspaceMemory:
+        """
+        Store a memory in a workspace.
+        
+        Args:
+            workspace_id: Workspace ID.
+            content: Memory content.
+            type: Memory type (fact, decision, preference, todo, context, reference).
+            tags: Optional tags.
+            links: Optional links to other memories.
+            source_task_id: Optional source task ID.
+            confidence: Optional confidence score (0-1).
+        
+        Returns:
+            The stored memory.
+        """
+        params: dict[str, Any] = {
+            "workspace_id": workspace_id,
+            "content": content,
+            "type": type,
+        }
+        if tags:
+            params["tags"] = tags
+        if links:
+            params["links"] = links
+        if source_task_id:
+            params["source_task_id"] = source_task_id
+        if confidence is not None:
+            params["confidence"] = confidence
+        
+        result = await self._rpc("x-gopherhole/workspace.store", params)
+        return WorkspaceMemory(**result["memory"])
+
+    async def workspace_query(
+        self,
+        workspace_id: str,
+        query: str,
+        type: Optional[str] = None,
+        limit: int = 10,
+        threshold: Optional[float] = None,
+        tags: Optional[list[str]] = None,
+    ) -> list[WorkspaceMemory]:
+        """
+        Query workspace memories using semantic search.
+        
+        Args:
+            workspace_id: Workspace ID.
+            query: Search query.
+            type: Optional memory type filter.
+            limit: Max results (default 10).
+            threshold: Minimum similarity threshold (0-1).
+            tags: Optional tag filter.
+        
+        Returns:
+            List of matching memories with similarity scores.
+        """
+        params: dict[str, Any] = {
+            "workspace_id": workspace_id,
+            "query": query,
+            "limit": limit,
+        }
+        if type:
+            params["type"] = type
+        if threshold is not None:
+            params["threshold"] = threshold
+        if tags:
+            params["tags"] = tags
+        
+        result = await self._rpc("x-gopherhole/workspace.query", params)
+        return [WorkspaceMemory(**m) for m in result.get("memories", [])]
+
+    async def workspace_update(
+        self,
+        workspace_id: str,
+        memory_id: str,
+        content: Optional[str] = None,
+        type: Optional[str] = None,
+        tags: Optional[list[str]] = None,
+    ) -> WorkspaceMemory:
+        """Update an existing memory."""
+        params: dict[str, Any] = {
+            "workspace_id": workspace_id,
+            "id": memory_id,
+        }
+        if content:
+            params["content"] = content
+        if type:
+            params["type"] = type
+        if tags is not None:
+            params["tags"] = tags
+        
+        result = await self._rpc("x-gopherhole/workspace.update", params)
+        return WorkspaceMemory(**result["memory"])
+
+    async def workspace_forget(
+        self,
+        workspace_id: str,
+        memory_id: Optional[str] = None,
+        query: Optional[str] = None,
+    ) -> int:
+        """
+        Delete memories by ID or semantic query.
+        
+        Args:
+            workspace_id: Workspace ID.
+            memory_id: Specific memory ID to delete.
+            query: Or delete memories matching this query.
+        
+        Returns:
+            Number of memories deleted.
+        """
+        params: dict[str, Any] = {"workspace_id": workspace_id}
+        if memory_id:
+            params["id"] = memory_id
+        if query:
+            params["query"] = query
+        
+        result = await self._rpc("x-gopherhole/workspace.forget", params)
+        return result.get("deleted", 0)
+
+    async def workspace_memories(
+        self,
+        workspace_id: str,
+        limit: int = 20,
+        offset: int = 0,
+        type: Optional[str] = None,
+        tags: Optional[list[str]] = None,
+    ) -> WorkspaceMemoriesResult:
+        """
+        List memories in a workspace (non-semantic browse).
+        
+        Args:
+            workspace_id: Workspace ID.
+            limit: Max results (default 20).
+            offset: Pagination offset.
+            type: Optional memory type filter.
+            tags: Optional tag filter.
+        
+        Returns:
+            Memories with count and total.
+        """
+        params: dict[str, Any] = {
+            "workspace_id": workspace_id,
+            "limit": limit,
+            "offset": offset,
+        }
+        if type:
+            params["type"] = type
+        if tags:
+            params["tags"] = tags
+        
+        result = await self._rpc("x-gopherhole/workspace.memories", params)
+        return WorkspaceMemoriesResult(
+            memories=[WorkspaceMemory(**m) for m in result.get("memories", [])],
+            count=result.get("count", 0),
+            total=result.get("total", 0),
+        )
+
+    async def workspace_types(self) -> list[dict]:
+        """Get available memory types."""
+        result = await self._rpc("x-gopherhole/workspace.types", {})
+        return result.get("types", [])
 
     # Context manager support
     async def __aenter__(self) -> "GopherHole":

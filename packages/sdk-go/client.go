@@ -562,6 +562,163 @@ func (c *Client) RateAgent(ctx context.Context, agentID string, rating int, revi
 	return c.httpPost(ctx, c.apiURL+"/api/discover/agents/"+agentID+"/rate", body, nil)
 }
 
+// ============================================================
+// WORKSPACE METHODS (GopherHole Extension)
+// ============================================================
+
+// WorkspaceCreate creates a new workspace.
+func (c *Client) WorkspaceCreate(ctx context.Context, name, description string) (*Workspace, error) {
+	params := map[string]interface{}{
+		"name":        name,
+		"description": description,
+	}
+	var result struct {
+		Workspace Workspace `json:"workspace"`
+	}
+	if err := c.rpc(ctx, "x-gopherhole/workspace.create", params, &result); err != nil {
+		return nil, err
+	}
+	return &result.Workspace, nil
+}
+
+// WorkspaceGet retrieves a workspace by ID.
+func (c *Client) WorkspaceGet(ctx context.Context, workspaceID string) (*Workspace, error) {
+	params := map[string]string{"workspace_id": workspaceID}
+	var result struct {
+		Workspace Workspace `json:"workspace"`
+	}
+	if err := c.rpc(ctx, "x-gopherhole/workspace.get", params, &result); err != nil {
+		return nil, err
+	}
+	return &result.Workspace, nil
+}
+
+// WorkspaceDelete deletes a workspace (must be owner).
+func (c *Client) WorkspaceDelete(ctx context.Context, workspaceID string) error {
+	params := map[string]string{"workspace_id": workspaceID}
+	return c.rpc(ctx, "x-gopherhole/workspace.delete", params, nil)
+}
+
+// WorkspaceList lists workspaces this agent is a member of.
+func (c *Client) WorkspaceList(ctx context.Context) ([]Workspace, error) {
+	var result struct {
+		Workspaces []Workspace `json:"workspaces"`
+	}
+	if err := c.rpc(ctx, "x-gopherhole/workspace.list", map[string]interface{}{}, &result); err != nil {
+		return nil, err
+	}
+	return result.Workspaces, nil
+}
+
+// WorkspaceMembersAdd adds an agent to a workspace (admin only).
+func (c *Client) WorkspaceMembersAdd(ctx context.Context, workspaceID, agentID string, role WorkspaceRole) error {
+	params := map[string]interface{}{
+		"workspace_id": workspaceID,
+		"agent_id":     agentID,
+		"role":         role,
+	}
+	return c.rpc(ctx, "x-gopherhole/workspace.members.add", params, nil)
+}
+
+// WorkspaceMembersRemove removes an agent from a workspace (admin only).
+func (c *Client) WorkspaceMembersRemove(ctx context.Context, workspaceID, agentID string) error {
+	params := map[string]interface{}{
+		"workspace_id": workspaceID,
+		"agent_id":     agentID,
+	}
+	return c.rpc(ctx, "x-gopherhole/workspace.members.remove", params, nil)
+}
+
+// WorkspaceMembersList lists workspace members.
+func (c *Client) WorkspaceMembersList(ctx context.Context, workspaceID string) ([]WorkspaceMember, error) {
+	params := map[string]string{"workspace_id": workspaceID}
+	var result struct {
+		Members []WorkspaceMember `json:"members"`
+	}
+	if err := c.rpc(ctx, "x-gopherhole/workspace.members.list", params, &result); err != nil {
+		return nil, err
+	}
+	return result.Members, nil
+}
+
+// WorkspaceStore stores a memory in a workspace.
+func (c *Client) WorkspaceStore(ctx context.Context, params WorkspaceStoreParams) (*WorkspaceMemory, error) {
+	var result struct {
+		Memory WorkspaceMemory `json:"memory"`
+	}
+	if err := c.rpc(ctx, "x-gopherhole/workspace.store", params, &result); err != nil {
+		return nil, err
+	}
+	return &result.Memory, nil
+}
+
+// WorkspaceQuery queries workspace memories using semantic search.
+func (c *Client) WorkspaceQuery(ctx context.Context, params WorkspaceQueryParams) ([]WorkspaceMemory, error) {
+	var result struct {
+		Memories []WorkspaceMemory `json:"memories"`
+		Count    int               `json:"count"`
+	}
+	if err := c.rpc(ctx, "x-gopherhole/workspace.query", params, &result); err != nil {
+		return nil, err
+	}
+	return result.Memories, nil
+}
+
+// WorkspaceUpdate updates an existing memory.
+func (c *Client) WorkspaceUpdate(ctx context.Context, params WorkspaceUpdateParams) (*WorkspaceMemory, error) {
+	var result struct {
+		Memory WorkspaceMemory `json:"memory"`
+	}
+	if err := c.rpc(ctx, "x-gopherhole/workspace.update", params, &result); err != nil {
+		return nil, err
+	}
+	return &result.Memory, nil
+}
+
+// WorkspaceForget deletes memories by ID or semantic query.
+func (c *Client) WorkspaceForget(ctx context.Context, workspaceID string, memoryID string, query string) (int, error) {
+	params := map[string]interface{}{"workspace_id": workspaceID}
+	if memoryID != "" {
+		params["id"] = memoryID
+	}
+	if query != "" {
+		params["query"] = query
+	}
+	var result struct {
+		Deleted int `json:"deleted"`
+	}
+	if err := c.rpc(ctx, "x-gopherhole/workspace.forget", params, &result); err != nil {
+		return 0, err
+	}
+	return result.Deleted, nil
+}
+
+// WorkspaceMemories lists memories in a workspace (non-semantic browse).
+func (c *Client) WorkspaceMemories(ctx context.Context, params WorkspaceListMemoriesParams) (*WorkspaceMemoriesResult, error) {
+	var result WorkspaceMemoriesResult
+	if err := c.rpc(ctx, "x-gopherhole/workspace.memories", params, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// WorkspaceTypes returns available memory types.
+func (c *Client) WorkspaceTypes(ctx context.Context) ([]MemoryType, error) {
+	var result struct {
+		Types []struct {
+			ID string `json:"id"`
+		} `json:"types"`
+	}
+	if err := c.rpc(ctx, "x-gopherhole/workspace.types", map[string]interface{}{}, &result); err != nil {
+		return nil, err
+	}
+	types := make([]MemoryType, len(result.Types))
+	for i, t := range result.Types {
+		types[i] = MemoryType(t.ID)
+	}
+	return types, nil
+}
+
 // Internal methods
 
 func (c *Client) rpc(ctx context.Context, method string, params interface{}, result interface{}) error {

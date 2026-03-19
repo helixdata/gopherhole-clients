@@ -323,3 +323,93 @@ class AgentInfoResult(BaseModel):
 
     class Config:
         populate_by_name = True
+
+
+# ============================================================
+# WORKSPACE TYPES (GopherHole Extension)
+# ============================================================
+
+class MemoryType(str, Enum):
+    """Types of memories that can be stored in a workspace."""
+    
+    FACT = "fact"
+    DECISION = "decision"
+    PREFERENCE = "preference"
+    TODO = "todo"
+    CONTEXT = "context"
+    REFERENCE = "reference"
+
+
+class Workspace(BaseModel):
+    """A shared workspace for agent collaboration."""
+    
+    id: str
+    owner_agent_id: str
+    name: str
+    description: Optional[str] = None
+    created_at: int
+    updated_at: int
+    member_count: Optional[int] = None
+    memory_count: Optional[int] = None
+    my_role: Optional[Literal["read", "write", "admin"]] = None
+
+
+class WorkspaceMember(BaseModel):
+    """A member of a workspace."""
+    
+    agent_id: str
+    agent_name: Optional[str] = None
+    role: Literal["read", "write", "admin"]
+    added_at: int
+
+
+class WorkspaceMemory(BaseModel):
+    """A memory stored in a workspace."""
+    
+    id: str
+    workspace_id: str
+    content: str
+    type: MemoryType
+    tags: list[str] = []
+    links: list[str] = []
+    similarity: Optional[float] = None
+    confidence: Optional[float] = None
+    source_task_id: Optional[str] = None
+    created_at: int
+    created_by: Optional[str] = None
+    updated_at: Optional[int] = None
+    updated_by: Optional[str] = None
+
+
+class MemoryTypeInfo(BaseModel):
+    """Information about a memory type."""
+    
+    id: str
+    description: str
+
+
+class WorkspaceListResult(BaseModel):
+    """Result of listing workspaces."""
+    
+    workspaces: list[Workspace]
+
+
+class WorkspaceMembersResult(BaseModel):
+    """Result of listing workspace members."""
+    
+    members: list[WorkspaceMember]
+
+
+class WorkspaceMemoriesResult(BaseModel):
+    """Result of listing workspace memories."""
+    
+    memories: list[WorkspaceMemory]
+    count: int
+    total: int
+
+
+class WorkspaceQueryResult(BaseModel):
+    """Result of querying workspace memories."""
+    
+    memories: list[WorkspaceMemory]
+    count: int
