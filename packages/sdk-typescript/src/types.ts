@@ -230,3 +230,100 @@ export interface TaskArtifactUpdateEvent {
 }
 
 export type TaskEvent = TaskStatusUpdateEvent | TaskArtifactUpdateEvent;
+
+// ============ Workspace Types (GopherHole Extension) ============
+
+export const MEMORY_TYPES = ['fact', 'decision', 'preference', 'todo', 'context', 'reference'] as const;
+export type MemoryType = typeof MEMORY_TYPES[number];
+
+export interface Workspace {
+  id: string;
+  owner_agent_id: string;
+  name: string;
+  description: string | null;
+  created_at: number;
+  updated_at: number;
+  member_count?: number;
+  memory_count?: number;
+  my_role?: 'read' | 'write' | 'admin';
+}
+
+export interface WorkspaceMember {
+  agent_id: string;
+  agent_name?: string;
+  role: 'read' | 'write' | 'admin';
+  added_at: number;
+}
+
+export interface WorkspaceMemory {
+  id: string;
+  workspace_id: string;
+  content: string;
+  type: MemoryType;
+  tags: string[];
+  links: string[];
+  similarity?: number;
+  confidence?: number;
+  source_task_id?: string;
+  created_at: number;
+  created_by: string | null;
+  updated_at?: number;
+  updated_by?: string | null;
+}
+
+export interface MemoryTypeInfo {
+  id: MemoryType;
+  description: string;
+}
+
+export interface WorkspaceStoreParams {
+  workspace_id: string;
+  content: string;
+  type: MemoryType;
+  tags?: string[];
+  links?: string[];
+  source_task_id?: string;
+  expires?: string;
+  confidence?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface WorkspaceQueryParams {
+  workspace_id: string;
+  query: string;
+  type?: MemoryType;
+  limit?: number;
+  threshold?: number;
+  tags?: string[];
+}
+
+export interface WorkspaceUpdateParams {
+  workspace_id: string;
+  id: string;
+  content?: string;
+  type?: MemoryType;
+  tags?: string[];
+  links?: string[];
+  confidence?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface WorkspaceForgetParams {
+  workspace_id: string;
+  id?: string;
+  query?: string;
+}
+
+export interface WorkspaceListMemoriesParams {
+  workspace_id: string;
+  limit?: number;
+  offset?: number;
+  type?: MemoryType;
+  tags?: string[];
+}
+
+export interface SecretInfo {
+  key: string;
+  created_at: number;
+  updated_at?: number;
+}

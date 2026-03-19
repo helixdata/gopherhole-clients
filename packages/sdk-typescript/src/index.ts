@@ -3,6 +3,21 @@ import { EventEmitter } from 'eventemitter3';
 // Re-export types
 export * from './types';
 
+// Import workspace types
+import type {
+  Workspace,
+  WorkspaceMember,
+  WorkspaceMemory,
+  MemoryType,
+  MemoryTypeInfo,
+  WorkspaceStoreParams,
+  WorkspaceQueryParams,
+  WorkspaceUpdateParams,
+  WorkspaceForgetParams,
+  WorkspaceListMemoriesParams,
+  SecretInfo,
+} from './types';
+
 // Re-export agent helper for webhook-based agents
 export { 
   GopherHoleAgent,
@@ -475,6 +490,154 @@ export class GopherHole extends EventEmitter<EventMap> {
       role: 'agent',
       parts: [{ kind: 'text', text }],
     });
+  }
+
+  // ==========================================
+  // WORKSPACE METHODS (GopherHole Extension)
+  // ==========================================
+
+  /**
+   * Create a new workspace
+   */
+  async workspaceCreate(name: string, description?: string): Promise<{ workspace: Workspace }> {
+    return this.rpc('x-gopherhole/workspace.create', { name, description }) as Promise<{ workspace: Workspace }>;
+  }
+
+  /**
+   * Get workspace info
+   */
+  async workspaceGet(workspaceId: string): Promise<{ workspace: Workspace }> {
+    return this.rpc('x-gopherhole/workspace.get', { workspace_id: workspaceId }) as Promise<{ workspace: Workspace }>;
+  }
+
+  /**
+   * Delete a workspace (must be owner)
+   */
+  async workspaceDelete(workspaceId: string): Promise<{ success: true }> {
+    return this.rpc('x-gopherhole/workspace.delete', { workspace_id: workspaceId }) as Promise<{ success: true }>;
+  }
+
+  /**
+   * List workspaces this agent is a member of
+   */
+  async workspaceList(): Promise<{ workspaces: Workspace[] }> {
+    return this.rpc('x-gopherhole/workspace.list', {}) as Promise<{ workspaces: Workspace[] }>;
+  }
+
+  /**
+   * Add an agent to a workspace (admin only)
+   */
+  async workspaceMembersAdd(
+    workspaceId: string, 
+    agentId: string, 
+    role: 'read' | 'write' | 'admin' = 'write'
+  ): Promise<{ success: true; agent_id: string; role: string }> {
+    return this.rpc('x-gopherhole/workspace.members.add', { 
+      workspace_id: workspaceId, 
+      agent_id: agentId, 
+      role 
+    }) as Promise<{ success: true; agent_id: string; role: string }>;
+  }
+
+  /**
+   * Remove an agent from a workspace (admin only)
+   */
+  async workspaceMembersRemove(workspaceId: string, agentId: string): Promise<{ success: true }> {
+    return this.rpc('x-gopherhole/workspace.members.remove', { 
+      workspace_id: workspaceId, 
+      agent_id: agentId 
+    }) as Promise<{ success: true }>;
+  }
+
+  /**
+   * List workspace members
+   */
+  async workspaceMembersList(workspaceId: string): Promise<{ members: WorkspaceMember[] }> {
+    return this.rpc('x-gopherhole/workspace.members.list', { 
+      workspace_id: workspaceId 
+    }) as Promise<{ members: WorkspaceMember[] }>;
+  }
+
+  /**
+   * Store a memory in a workspace (semantic storage)
+   */
+  async workspaceStore(params: WorkspaceStoreParams): Promise<{ memory: WorkspaceMemory }> {
+    return this.rpc('x-gopherhole/workspace.store', { ...params }) as Promise<{ memory: WorkspaceMemory }>;
+  }
+
+  /**
+   * Query workspace memories (semantic search)
+   */
+  async workspaceQuery(params: WorkspaceQueryParams): Promise<{ memories: WorkspaceMemory[]; count: number }> {
+    return this.rpc('x-gopherhole/workspace.query', { ...params }) as Promise<{ memories: WorkspaceMemory[]; count: number }>;
+  }
+
+  /**
+   * Update an existing memory
+   */
+  async workspaceUpdate(params: WorkspaceUpdateParams): Promise<{ memory: WorkspaceMemory }> {
+    return this.rpc('x-gopherhole/workspace.update', { ...params }) as Promise<{ memory: WorkspaceMemory }>;
+  }
+
+  /**
+   * Delete memories by ID or semantic query
+   */
+  async workspaceForget(params: WorkspaceForgetParams): Promise<{ deleted: number }> {
+    return this.rpc('x-gopherhole/workspace.forget', { ...params }) as Promise<{ deleted: number }>;
+  }
+
+  /**
+   * List memories in a workspace (non-semantic browse)
+   */
+  async workspaceMemories(params: WorkspaceListMemoriesParams): Promise<{ memories: WorkspaceMemory[]; count: number; total: number }> {
+    return this.rpc('x-gopherhole/workspace.memories', { ...params }) as Promise<{ memories: WorkspaceMemory[]; count: number; total: number }>;
+  }
+
+  /**
+   * Get available memory types
+   */
+  async workspaceTypes(): Promise<{ types: MemoryTypeInfo[] }> {
+    return this.rpc('x-gopherhole/workspace.types', {}) as Promise<{ types: MemoryTypeInfo[] }>;
+  }
+
+  /**
+   * Store an encrypted secret
+   */
+  async workspaceSecretSet(workspaceId: string, key: string, value: string): Promise<{ success: true; key: string }> {
+    return this.rpc('x-gopherhole/workspace.secrets.set', { 
+      workspace_id: workspaceId, 
+      key, 
+      value 
+    }) as Promise<{ success: true; key: string }>;
+  }
+
+  /**
+   * Get an encrypted secret
+   */
+  async workspaceSecretGet(workspaceId: string, key: string): Promise<{ key: string; value: string }> {
+    return this.rpc('x-gopherhole/workspace.secrets.get', { 
+      workspace_id: workspaceId, 
+      key 
+    }) as Promise<{ key: string; value: string }>;
+  }
+
+  /**
+   * Delete a secret
+   */
+  async workspaceSecretDelete(workspaceId: string, key: string): Promise<{ deleted: boolean }> {
+    return this.rpc('x-gopherhole/workspace.secrets.delete', { 
+      workspace_id: workspaceId, 
+      key 
+    }) as Promise<{ deleted: boolean }>;
+  }
+
+  /**
+   * List secret keys (not values)
+   */
+  async workspaceSecretList(workspaceId: string): Promise<{ keys: SecretInfo[] }> {
+    return this.rpc('x-gopherhole/workspace.secrets.list', { 
+      workspace_id: workspaceId 
+    }) as Promise<{ keys: SecretInfo[] }>;
   }
 
   /**
