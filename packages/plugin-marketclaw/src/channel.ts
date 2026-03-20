@@ -281,6 +281,28 @@ export class A2AChannel implements Channel {
       logger.error({ error: error.message }, 'GopherHole SDK error');
     });
 
+    // Handle system messages (spending alerts, account alerts, notices, maintenance)
+    this.gopherholeClient.on('system', (message) => {
+      const kind = message.metadata.kind;
+      const text = message.payload.parts.find((p: { kind: string; text?: string }) => p.kind === 'text')?.text || '';
+      const data = message.metadata.data;
+
+      switch (kind) {
+        case 'spending_alert':
+          logger.warn({ kind, message: text, data }, 'Spending alert from GopherHole');
+          break;
+        case 'account_alert':
+          logger.warn({ kind, message: text, data }, 'Account alert from GopherHole');
+          break;
+        case 'system_notice':
+        case 'maintenance':
+          logger.info({ kind, message: text }, 'System notice from GopherHole');
+          break;
+        default:
+          logger.info({ kind, message: text }, 'System message from GopherHole');
+      }
+    });
+
     this.gopherholeClient.on('message', (message) => {
       // Handle incoming message from another agent
       logger.info({ 

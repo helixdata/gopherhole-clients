@@ -113,6 +113,11 @@ export class A2AConnectionManager {
       this.handleIncomingMessage(message);
     });
 
+    // Handle system messages (rate limits, budget alerts, announcements)
+    this.gopherhole.on('system', (message) => {
+      this.handleSystemMessage(message);
+    });
+
     // Connect
     try {
       await this.gopherhole.connect();
@@ -155,6 +160,47 @@ export class A2AConnectionManager {
     this.messageHandler('gopherhole', a2aMsg).catch((err) => {
       console.error('[a2a] Error handling incoming message:', err);
     });
+  }
+
+  /**
+   * Handle system messages from GopherHole Hub
+   * These include spending alerts, account alerts, notices, maintenance, etc.
+   */
+  private handleSystemMessage(message: Message): void {
+    const kind = message.metadata?.kind;
+    const text = message.payload.parts.find(p => p.kind === 'text')?.text || '';
+    const data = message.metadata?.data;
+
+    // Log all system messages
+    console.log(`[a2a] System message (${kind || 'unknown'}): ${text}`);
+
+    // Handle specific message kinds
+    switch (kind) {
+      case 'spending_alert':
+        console.warn(`[a2a] 💰 Spending alert: ${text}`);
+        if (data) {
+          console.warn(`[a2a] Spending data:`, JSON.stringify(data));
+        }
+        break;
+
+      case 'account_alert':
+        console.warn(`[a2a] ⚠️ Account alert: ${text}`);
+        break;
+
+      case 'system_notice':
+        console.log(`[a2a] 📢 System notice: ${text}`);
+        break;
+
+      case 'maintenance':
+        console.warn(`[a2a] 🔧 Maintenance notice: ${text}`);
+        break;
+
+      default:
+        // Log but don't warn for unknown types
+        if (kind) {
+          console.log(`[a2a] System message "${kind}": ${text}`);
+        }
+    }
   }
 
   async stop(): Promise<void> {
