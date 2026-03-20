@@ -92,6 +92,9 @@ func WithAgentCard(card *AgentCard) ClientOption {
 // MessageHandler is called when a message is received.
 type MessageHandler func(Message)
 
+// SystemHandler is called when a verified system message is received from @system.
+type SystemHandler func(Message)
+
 // TaskUpdateHandler is called when a task is updated.
 type TaskUpdateHandler func(Task)
 
@@ -123,6 +126,7 @@ type Client struct {
 
 	// Event handlers
 	onMessage      MessageHandler
+	onSystem       SystemHandler
 	onTaskUpdate   TaskUpdateHandler
 	onError        ErrorHandler
 	onConnect      func()
@@ -172,6 +176,16 @@ func New(apiKey string, opts ...ClientOption) *Client {
 // OnMessage sets the handler for incoming messages.
 func (c *Client) OnMessage(h MessageHandler) {
 	c.onMessage = h
+}
+
+// OnSystem sets the handler for verified system messages from @system.
+func (c *Client) OnSystem(h SystemHandler) {
+	c.onSystem = h
+}
+
+// IsSystemMessage checks if a message is a verified system message.
+func (c *Client) IsSystemMessage(msg Message) bool {
+	return msg.IsSystemMessage()
 }
 
 // OnTaskUpdate sets the handler for task updates.
@@ -863,15 +877,24 @@ func (c *Client) readLoop() {
 func (c *Client) handleWSMessage(msg wsMessage) {
 	switch msg.Type {
 	case "message":
-		if c.onMessage != nil {
-			var payload MessagePayload
-			if err := json.Unmarshal(msg.Payload, &payload); err == nil {
-				c.onMessage(Message{
-					From:      msg.From,
-					TaskID:    msg.TaskID,
-					Payload:   payload,
-					Timestamp: time.UnixMilli(msg.Timestamp),
-				})
+		var payload MessagePayload
+		if err := json.Unmarshal(msg.Payload, &payload); err == nil {
+			message := Message{
+				From:      msg.From,
+				TaskID:    msg.TaskID,
+				Payload:   payload,
+				Timestamp: time.UnixMilli(msg.Timestamp),
+				Metadata:  msg.Metadata,
+			}
+			
+			// Call system handler for verified system messages
+			if c.onSystem != nil && message.IsSystemMessage() {
+				c.onSystem(message)
+			}
+			
+			// Always call message handler for backwards compatibility
+			if c.onMessage != nil {
+				c.onMessage(message)
 			}
 		}
 	case "task_update":

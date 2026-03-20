@@ -169,6 +169,14 @@ client.OnMessage(func(msg gopherhole.Message) {
 	}
 })
 
+// Verified system messages from @system
+client.OnSystem(func(msg gopherhole.Message) {
+	fmt.Printf("System notification: %s\n", msg.Metadata.Kind)
+	if msg.Metadata.Kind == "spending_alert" {
+		fmt.Println("Budget warning received!")
+	}
+})
+
 // Task updates
 client.OnTaskUpdate(func(task gopherhole.Task) {
 	fmt.Printf("Task %s: %s\n", task.ID, task.Status.State)
@@ -187,6 +195,20 @@ client.OnDisconnect(func(reason string) {
 client.OnError(func(err error) {
 	log.Printf("Error: %v", err)
 })
+```
+
+### Helper Methods
+
+```go
+// Check if a message is a verified system message
+if msg.IsSystemMessage() {
+	fmt.Println("This is from GopherHole")
+}
+
+// Or use the client method
+if client.IsSystemMessage(msg) {
+	fmt.Println("Verified system message")
+}
 ```
 
 ### Discovery

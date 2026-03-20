@@ -116,6 +116,7 @@ class GopherHole:
         self._on_disconnect: Optional[Callable[[str], Any]] = None
         self._on_reconnecting: Optional[Callable[[int, float], Any]] = None
         self._on_message: Optional[Callable[[Message], Any]] = None
+        self._on_system: Optional[Callable[[Message], Any]] = None
         self._on_task_update: Optional[Callable[[Task], Any]] = None
         self._on_error: Optional[Callable[[Exception], Any]] = None
 
@@ -155,6 +156,11 @@ class GopherHole:
         self._on_message = func
         return func
 
+    def on_system(self, func: Callable[[Message], Any]) -> Callable[[Message], Any]:
+        """Register a handler for verified system messages from @system."""
+        self._on_system = func
+        return func
+
     def on_task_update(self, func: Callable[[Task], Any]) -> Callable[[Task], Any]:
         """Register a handler for task update events."""
         self._on_task_update = func
@@ -164,6 +170,21 @@ class GopherHole:
         """Register a handler for error events."""
         self._on_error = func
         return func
+
+    @staticmethod
+    def is_system_message(msg: Message) -> bool:
+        """
+        Check if a message is a verified system message from @system.
+        
+        Use this to validate that a message is genuinely from GopherHole.
+        
+        Args:
+            msg: The message to check
+            
+        Returns:
+            True if the message is a verified system message
+        """
+        return msg.is_system_message() if hasattr(msg, "is_system_message") else False
 
     async def connect(self) -> None:
         """Connect to the GopherHole hub via WebSocket."""
@@ -297,15 +318,24 @@ class GopherHole:
         msg_type = data.get("type")
         
         if msg_type == "message":
+            msg = Message(
+                **{
+                    "from": data["from"],
+                    "taskId": data.get("taskId"),
+                    "payload": data["payload"],
+                    "timestamp": data.get("timestamp", 0),
+                    "metadata": data.get("metadata"),
+                }
+            )
+            
+            # Handle verified system messages
+            if self._on_system and self.is_system_message(msg):
+                result = self._on_system(msg)
+                if asyncio.iscoroutine(result):
+                    await result
+            
+            # Always call on_message for backwards compatibility
             if self._on_message:
-                msg = Message(
-                    **{
-                        "from": data["from"],
-                        "taskId": data.get("taskId"),
-                        "payload": data["payload"],
-                        "timestamp": data.get("timestamp", 0),
-                    }
-                )
                 result = self._on_message(msg)
                 if asyncio.iscoroutine(result):
                     await result

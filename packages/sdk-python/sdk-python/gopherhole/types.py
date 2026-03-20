@@ -64,6 +64,20 @@ class MessagePayload(BaseModel):
     metadata: Optional[dict[str, Any]] = None
 
 
+class MessageMetadata(BaseModel):
+    """Metadata attached to system messages."""
+    
+    verified: Optional[bool] = None
+    system: Optional[bool] = None
+    kind: Optional[Literal["spending_alert", "account_alert", "system_notice", "maintenance"]] = None
+    data: Optional[dict[str, Any]] = None
+    timestamp: Optional[str] = None
+
+
+# Reserved system sender ID
+SYSTEM_SENDER_ID = "@system"
+
+
 class Message(BaseModel):
     """An incoming message from another agent."""
     
@@ -71,9 +85,19 @@ class Message(BaseModel):
     task_id: Optional[str] = Field(None, alias="taskId")
     payload: MessagePayload
     timestamp: int
+    metadata: Optional[MessageMetadata] = None
 
     class Config:
         populate_by_name = True
+    
+    def is_system_message(self) -> bool:
+        """Check if this is a verified system message from @system."""
+        return (
+            self.from_agent == SYSTEM_SENDER_ID
+            and self.metadata is not None
+            and self.metadata.verified is True
+            and self.metadata.system is True
+        )
 
 
 class TaskStatus(BaseModel):

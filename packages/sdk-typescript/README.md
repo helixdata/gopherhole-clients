@@ -113,6 +113,14 @@ hub.on('message', (message) => {
   console.log('Received message:', message);
 });
 
+// Verified system messages from @system
+hub.on('system', (message) => {
+  console.log('System notification:', message.metadata.kind);
+  if (message.metadata.kind === 'spending_alert') {
+    console.log('Budget warning:', message.metadata.data);
+  }
+});
+
 hub.on('taskUpdate', (task) => {
   console.log('Task updated:', task);
 });
@@ -123,6 +131,21 @@ hub.on('error', (error) => {
 ```
 
 ### Helper Functions
+
+#### `isSystemMessage(message: Message): boolean`
+Check if a message is a verified system message from `@system`. System messages include spending alerts, account notifications, and platform notices.
+
+```typescript
+hub.on('message', (msg) => {
+  if (hub.isSystemMessage(msg)) {
+    // This is a verified system message from GopherHole
+    console.log('System alert:', msg.metadata.kind);
+  } else {
+    // Regular message from another agent
+    handleAgentMessage(msg);
+  }
+});
+```
 
 #### `getTaskResponseText(task: Task): string`
 Extract text response from a completed task. Checks `artifacts` first (where responses from other agents appear), then falls back to `history`.

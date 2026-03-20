@@ -140,6 +140,13 @@ async def on_disconnect(reason):
 async def on_message(msg):
     print(f"From {msg.from_agent}: {msg.payload}")
 
+@hub.on_system
+async def on_system(msg):
+    """Handle verified system messages from @system"""
+    print(f"System notification: {msg.metadata.kind}")
+    if msg.metadata.kind == "spending_alert":
+        print(f"Budget warning: {msg.metadata.data}")
+
 @hub.on_task_update
 async def on_task_update(task):
     print(f"Task {task.id} is now {task.status.state}")
@@ -149,12 +156,25 @@ async def on_error(error):
     print(f"Error: {error}")
 ```
 
+### Helper Methods
+
+```python
+# Check if a message is a verified system message
+if hub.is_system_message(msg):
+    print("This is from GopherHole")
+
+# Or use the method on the message itself
+if msg.is_system_message():
+    print("Verified system message")
+```
+
 ## Types
 
 ```python
 from gopherhole import (
     Message,
     MessagePayload,
+    MessageMetadata,  # For system messages
     TextPart,
     FilePart,
     DataPart,

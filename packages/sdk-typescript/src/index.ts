@@ -80,7 +80,36 @@ export interface Message {
   taskId?: string;
   payload: MessagePayload;
   timestamp: number;
+  /** Metadata for system messages */
+  metadata?: MessageMetadata;
 }
+
+/** Metadata attached to system messages */
+export interface MessageMetadata {
+  /** True if this is a verified system message */
+  verified?: boolean;
+  /** True if from @system */
+  system?: boolean;
+  /** Type of system message */
+  kind?: 'spending_alert' | 'account_alert' | 'system_notice' | 'maintenance';
+  /** Additional data specific to the message kind */
+  data?: Record<string, unknown>;
+  /** ISO timestamp */
+  timestamp?: string;
+}
+
+/** System message event payload */
+export interface SystemMessage extends Message {
+  from: '@system';
+  metadata: MessageMetadata & {
+    verified: true;
+    system: true;
+    kind: 'spending_alert' | 'account_alert' | 'system_notice' | 'maintenance';
+  };
+}
+
+/** Reserved system sender ID */
+export const SYSTEM_SENDER_ID = '@system';
 
 export interface MessagePayload {
   role: 'user' | 'agent';
@@ -183,6 +212,8 @@ type EventMap = {
   reconnecting: (info: { attempt: number; delayMs: number }) => void;
   error: (error: Error) => void;
   message: (message: Message) => void;
+  /** Emitted for verified system messages from @system */
+  system: (message: SystemMessage) => void;
   taskUpdate: (task: Task) => void;
 };
 
@@ -411,6 +442,18 @@ export class GopherHole extends EventEmitter<EventMap> {
   async cancelTask(taskId: string): Promise<Task> {
     const response = await this.rpc('tasks/cancel', { id: taskId });
     return response as Task;
+  }
+
+  /**
+   * Check if a message is a verified system message from @system
+   * Use this to validate that a message is genuinely from GopherHole
+   */
+  isSystemMessage(message: Message): message is SystemMessage {
+    return (
+      message.from === SYSTEM_SENDER_ID &&
+      message.metadata?.verified === true &&
+      message.metadata?.system === true
+    );
   }
 
   /**
@@ -686,12 +729,21 @@ export class GopherHole extends EventEmitter<EventMap> {
    */
   private handleMessage(data: any): void {
     if (data.type === 'message') {
-      this.emit('message', {
+      const message: Message = {
         from: data.from,
         taskId: data.taskId,
         payload: data.payload,
         timestamp: data.timestamp || Date.now(),
-      });
+        metadata: data.metadata,
+      };
+      
+      // Emit 'system' event for verified system messages
+      if (this.isSystemMessage(message)) {
+        this.emit('system', message as SystemMessage);
+      }
+      
+      // Always emit 'message' for backwards compatibility
+      this.emit('message', message);
     } else if (data.type === 'task_update') {
       this.emit('taskUpdate', data.task);
     } else if (data.type === 'pong') {

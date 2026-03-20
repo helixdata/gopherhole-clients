@@ -147,12 +147,33 @@ func GetTaskResponseText(task *Task) string {
 	return task.GetResponseText()
 }
 
+// SystemSenderID is the reserved sender ID for system messages.
+const SystemSenderID = "@system"
+
+// MessageMetadata contains metadata for system messages.
+type MessageMetadata struct {
+	Verified  bool                   `json:"verified,omitempty"`
+	System    bool                   `json:"system,omitempty"`
+	Kind      string                 `json:"kind,omitempty"` // "spending_alert", "account_alert", "system_notice", "maintenance"
+	Data      map[string]interface{} `json:"data,omitempty"`
+	Timestamp string                 `json:"timestamp,omitempty"`
+}
+
 // Message represents an incoming message from the WebSocket.
 type Message struct {
-	From      string         `json:"from"`
-	TaskID    string         `json:"taskId,omitempty"`
-	Payload   MessagePayload `json:"payload"`
-	Timestamp time.Time      `json:"timestamp"`
+	From      string           `json:"from"`
+	TaskID    string           `json:"taskId,omitempty"`
+	Payload   MessagePayload   `json:"payload"`
+	Timestamp time.Time        `json:"timestamp"`
+	Metadata  *MessageMetadata `json:"metadata,omitempty"`
+}
+
+// IsSystemMessage checks if this is a verified system message from @system.
+func (m *Message) IsSystemMessage() bool {
+	return m.From == SystemSenderID &&
+		m.Metadata != nil &&
+		m.Metadata.Verified &&
+		m.Metadata.System
 }
 
 // SendOptions contains options for sending a message.
@@ -288,13 +309,14 @@ type jsonRPCError struct {
 // WebSocket message types (internal)
 
 type wsMessage struct {
-	Type      string          `json:"type"`
-	From      string          `json:"from,omitempty"`
-	TaskID    string          `json:"taskId,omitempty"`
-	Payload   json.RawMessage `json:"payload,omitempty"`
-	Task      *Task           `json:"task,omitempty"`
-	AgentID   string          `json:"agentId,omitempty"`
-	Timestamp int64           `json:"timestamp,omitempty"`
+	Type      string           `json:"type"`
+	From      string           `json:"from,omitempty"`
+	TaskID    string           `json:"taskId,omitempty"`
+	Payload   json.RawMessage  `json:"payload,omitempty"`
+	Task      *Task            `json:"task,omitempty"`
+	AgentID   string           `json:"agentId,omitempty"`
+	Timestamp int64            `json:"timestamp,omitempty"`
+	Metadata  *MessageMetadata `json:"metadata,omitempty"`
 }
 
 // ============================================================
