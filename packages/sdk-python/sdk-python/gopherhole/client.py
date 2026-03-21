@@ -681,7 +681,8 @@ class GopherHole:
         query: Optional[str] = None,
         category: Optional[str] = None,
         tag: Optional[str] = None,
-        organization: Optional[str] = None,
+        owner: Optional[str] = None,
+        organization: Optional[str] = None,  # Alias for owner (deprecated)
         verified: Optional[bool] = None,
         sort: Optional[str] = None,  # 'smart', 'rating', 'popular', 'recent'
         limit: Optional[int] = None,
@@ -695,8 +696,9 @@ class GopherHole:
             query: Search query.
             category: Filter by category.
             tag: Filter by tag.
-            organization: Filter by organization name or slug.
-            verified: Only verified organizations.
+            owner: Filter by organization/tenant name or slug.
+            organization: Alias for owner (deprecated, use owner instead).
+            verified: Only show agents from verified organizations.
             sort: Sort mode ('smart', 'rating', 'popular', 'recent').
             limit: Max results (default 10, max 50).
             offset: Pagination offset.
@@ -711,8 +713,10 @@ class GopherHole:
             params["category"] = category
         if tag:
             params["tag"] = tag
-        if organization:
-            params["organization"] = organization
+        # Use owner, fall back to organization for backwards compatibility
+        owner_value = owner or organization
+        if owner_value:
+            params["owner"] = owner_value
         if verified is not None:
             params["verified"] = verified
         if sort:

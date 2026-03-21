@@ -779,9 +779,10 @@ type DiscoverAgentsOptions struct {
 	Query        string `json:"query,omitempty"`
 	Category     string `json:"category,omitempty"`
 	Tag          string `json:"tag,omitempty"`
-	Organization string `json:"organization,omitempty"`
-	Verified     *bool  `json:"verified,omitempty"`
-	Sort         string `json:"sort,omitempty"` // smart, rating, popular, recent
+	Owner        string `json:"owner,omitempty"`        // Filter by organization/tenant name
+	Organization string `json:"organization,omitempty"` // Deprecated: use Owner instead
+	Verified     *bool  `json:"verified,omitempty"`     // Only show agents from verified organizations
+	Sort         string `json:"sort,omitempty"`         // smart, rating, popular, recent
 	Limit        int    `json:"limit,omitempty"`
 	Offset       int    `json:"offset,omitempty"`
 }
@@ -825,8 +826,13 @@ func (c *Client) DiscoverAgents(ctx context.Context, opts *DiscoverAgentsOptions
 		if opts.Tag != "" {
 			params["tag"] = opts.Tag
 		}
-		if opts.Organization != "" {
-			params["organization"] = opts.Organization
+		// Use Owner, fall back to Organization for backwards compatibility
+		owner := opts.Owner
+		if owner == "" {
+			owner = opts.Organization
+		}
+		if owner != "" {
+			params["owner"] = owner
 		}
 		if opts.Verified != nil {
 			params["verified"] = *opts.Verified

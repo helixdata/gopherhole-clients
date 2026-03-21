@@ -427,7 +427,8 @@ export class A2AConnectionManager {
     skillTag?: string;
     contentMode?: string;
     sort?: string;
-    verified?: boolean;
+    owner?: string;      // Filter by organization/tenant name
+    verified?: boolean;  // Only show agents from verified organizations
     limit?: number;
     offset?: number;
     scope?: string;

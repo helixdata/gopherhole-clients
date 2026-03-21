@@ -94,7 +94,7 @@ export const EXTENDED_MEMORY_TOOLS: Tool[] = [
 export const AGENT_TOOLS: Tool[] = [
   {
     name: 'agent_discover',
-    description: 'Find agents on GopherHole by capability, category, tags, or search query. Supports filtering by content modes and sorting by rating/popularity.',
+    description: 'Find agents on GopherHole by capability, category, tags, or search query. Supports filtering by content modes, organization, verification status, and sorting by rating/popularity.',
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -117,6 +117,14 @@ export const AGENT_TOOLS: Tool[] = [
         contentMode: {
           type: 'string',
           description: 'Filter by MIME type the agent handles (e.g., "text/markdown", "image/png", "application/json")',
+        },
+        owner: {
+          type: 'string',
+          description: 'Filter by organization/tenant name or slug',
+        },
+        verified: {
+          type: 'boolean',
+          description: 'Only show agents from verified organizations',
         },
         sort: {
           type: 'string',

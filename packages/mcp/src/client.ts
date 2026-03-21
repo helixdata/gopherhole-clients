@@ -208,6 +208,8 @@ export class GopherHoleClient {
     skillTag?: string;
     contentMode?: string;
     sort?: string;
+    owner?: string;      // Filter by organization/tenant name
+    verified?: boolean;  // Only show agents from verified organizations
     limit?: number;
     offset?: number;
     scope?: string;
@@ -219,6 +221,8 @@ export class GopherHoleClient {
     if (options?.skillTag) params.set('skillTag', options.skillTag);
     if (options?.contentMode) params.set('contentMode', options.contentMode);
     if (options?.sort) params.set('sort', options.sort);
+    if (options?.owner) params.set('owner', options.owner);
+    if (options?.verified !== undefined) params.set('verified', String(options.verified));
     if (options?.limit) params.set('limit', String(options.limit));
     if (options?.offset) params.set('offset', String(options.offset));
     if (options?.scope) params.set('scope', options.scope);

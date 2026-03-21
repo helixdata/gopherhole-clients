@@ -691,6 +691,8 @@ export class A2AChannel implements Channel {
     skillTag?: string;
     contentMode?: string;
     sort?: 'rating' | 'popular' | 'recent';
+    owner?: string;      // Filter by organization/tenant name
+    verified?: boolean;  // Only show agents from verified organizations
     limit?: number;
     offset?: number;
     scope?: 'tenant';
