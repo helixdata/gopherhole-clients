@@ -733,6 +733,122 @@ func (c *Client) WorkspaceTypes(ctx context.Context) ([]MemoryType, error) {
 	return types, nil
 }
 
+// Discovery methods (GopherHole extension)
+
+// ListAvailableAgentsOptions configures the ListAvailableAgents call.
+type ListAvailableAgentsOptions struct {
+	Query         string `json:"query,omitempty"`
+	IncludePublic bool   `json:"public,omitempty"`
+}
+
+// AvailableAgent represents an agent you can communicate with.
+type AvailableAgent struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Description string `json:"description,omitempty"`
+	TenantName string `json:"tenantName"`
+	TenantSlug string `json:"tenantSlug"`
+	Verified   bool   `json:"verified"`
+	AccessType string `json:"accessType"` // same-tenant, granted, public
+	AutoApprove bool  `json:"autoApprove"`
+}
+
+// ListAvailableAgents returns agents you can communicate with (same-tenant + granted).
+func (c *Client) ListAvailableAgents(ctx context.Context, opts *ListAvailableAgentsOptions) ([]AvailableAgent, error) {
+	params := map[string]interface{}{}
+	if opts != nil {
+		if opts.Query != "" {
+			params["query"] = opts.Query
+		}
+		if opts.IncludePublic {
+			params["public"] = true
+		}
+	}
+	
+	var result struct {
+		Agents []AvailableAgent `json:"agents"`
+	}
+	if err := c.rpc(ctx, "x-gopherhole/agents.available", params, &result); err != nil {
+		return nil, err
+	}
+	return result.Agents, nil
+}
+
+// DiscoverAgentsOptions configures the DiscoverAgents call.
+type DiscoverAgentsOptions struct {
+	Query        string `json:"query,omitempty"`
+	Category     string `json:"category,omitempty"`
+	Tag          string `json:"tag,omitempty"`
+	Organization string `json:"organization,omitempty"`
+	Verified     *bool  `json:"verified,omitempty"`
+	Sort         string `json:"sort,omitempty"` // smart, rating, popular, recent
+	Limit        int    `json:"limit,omitempty"`
+	Offset       int    `json:"offset,omitempty"`
+}
+
+// DiscoveredAgent represents an agent found in the public marketplace.
+type DiscoveredAgent struct {
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description,omitempty"`
+	Category    string   `json:"category,omitempty"`
+	Tags        []string `json:"tags"`
+	Pricing     string   `json:"pricing"`
+	TenantName  string   `json:"tenantName"`
+	TenantSlug  string   `json:"tenantSlug"`
+	Verified    bool     `json:"verified"`
+	Featured    bool     `json:"featured"`
+	AvgRating   float64  `json:"avgRating"`
+	RatingCount int      `json:"ratingCount"`
+	AutoApprove bool     `json:"autoApprove"`
+	WebsiteURL  string   `json:"websiteUrl,omitempty"`
+	DocsURL     string   `json:"docsUrl,omitempty"`
+}
+
+// DiscoverAgentsResult contains the discovered agents and pagination info.
+type DiscoverAgentsResult struct {
+	Agents []DiscoveredAgent `json:"agents"`
+	Count  int               `json:"count"`
+	Offset int               `json:"offset"`
+}
+
+// DiscoverAgents searches the public marketplace with smart scoring.
+func (c *Client) DiscoverAgents(ctx context.Context, opts *DiscoverAgentsOptions) (*DiscoverAgentsResult, error) {
+	params := map[string]interface{}{}
+	if opts != nil {
+		if opts.Query != "" {
+			params["query"] = opts.Query
+		}
+		if opts.Category != "" {
+			params["category"] = opts.Category
+		}
+		if opts.Tag != "" {
+			params["tag"] = opts.Tag
+		}
+		if opts.Organization != "" {
+			params["organization"] = opts.Organization
+		}
+		if opts.Verified != nil {
+			params["verified"] = *opts.Verified
+		}
+		if opts.Sort != "" {
+			params["sort"] = opts.Sort
+		}
+		if opts.Limit > 0 {
+			params["limit"] = opts.Limit
+		}
+		if opts.Offset > 0 {
+			params["offset"] = opts.Offset
+		}
+	}
+	
+	var result DiscoverAgentsResult
+	if err := c.rpc(ctx, "x-gopherhole/agents.discover", params, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Internal methods
 
 func (c *Client) rpc(ctx context.Context, method string, params interface{}, result interface{}) error {

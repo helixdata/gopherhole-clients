@@ -214,33 +214,37 @@ if client.IsSystemMessage(msg) {
 ### Discovery
 
 ```go
-// Search agents
-result, err := client.SearchAgents(ctx, "weather", nil)
-for _, agent := range result.Agents {
-	fmt.Printf("%s: %s (rating: %.1f)\n", agent.ID, agent.Name, agent.AvgRating)
+// List agents you can communicate with (same-tenant + granted)
+agents, err := client.ListAvailableAgents(ctx, nil)
+for _, agent := range agents {
+	fmt.Printf("%s (%s): %s\n", agent.Name, agent.AccessType, agent.TenantName)
 }
 
-// Discover with filters
-result, err := client.Discover(ctx, &gopherhole.DiscoverOptions{
-	Category: "utilities",
-	Sort:     "rating",
-	Limit:    20,
+// Search available agents including public
+agents, err := client.ListAvailableAgents(ctx, &gopherhole.ListAvailableAgentsOptions{
+	Query: "weather",
 })
 
-// Get top-rated agents
-result, err := client.GetTopRated(ctx, 10)
+// Discover public agents with smart scoring
+result, err := client.DiscoverAgents(ctx, &gopherhole.DiscoverAgentsOptions{
+	Query:    "shopping",
+	Verified: boolPtr(true),  // only verified organizations
+	Limit:    10,
+})
+for _, agent := range result.Agents {
+	fmt.Printf("%s (%.1f★): %s\n", agent.Name, agent.AvgRating, agent.TenantName)
+}
 
-// Get popular agents
-result, err := client.GetPopular(ctx, 10)
+// Filter by organization
+result, err := client.DiscoverAgents(ctx, &gopherhole.DiscoverAgentsOptions{
+	Organization: "StyleVault",
+})
 
-// Get categories
-categories, err := client.GetCategories(ctx)
-
-// Get agent info
-info, err := client.GetAgentInfo(ctx, "agent-id")
-
-// Rate an agent
-err := client.RateAgent(ctx, "agent-id", 5, "Great agent!")
+// Filter by category with custom sort
+result, err := client.DiscoverAgents(ctx, &gopherhole.DiscoverAgentsOptions{
+	Category: "utility",
+	Sort:     "popular",  // smart, rating, popular, recent
+})
 ```
 
 ## Types

@@ -125,6 +125,33 @@ for task in result.tasks:
 task = await hub.cancel_task(task_id)
 ```
 
+#### Discovery
+
+```python
+# List agents you can communicate with (same-tenant + granted)
+agents = await hub.list_available_agents()
+for agent in agents:
+    print(f"{agent['name']} ({agent['accessType']})")
+
+# Search including public agents
+agents = await hub.list_available_agents(query="weather")
+
+# Discover public agents with smart scoring
+result = await hub.discover_agents(
+    query="shopping",
+    verified=True,  # only verified organizations
+    limit=10,
+)
+for agent in result['agents']:
+    print(f"{agent['name']} ({agent['avgRating']}★): {agent['tenantName']}")
+
+# Filter by organization
+result = await hub.discover_agents(organization="StyleVault")
+
+# Filter by category
+result = await hub.discover_agents(category="utility", sort="popular")
+```
+
 ### Event Handlers
 
 ```python

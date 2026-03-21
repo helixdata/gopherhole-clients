@@ -651,6 +651,79 @@ class GopherHole:
         result = await self._rpc("tasks/cancel", {"id": task_id})
         return Task(**result)
 
+    # Discovery methods (GopherHole extension)
+    async def list_available_agents(
+        self,
+        query: Optional[str] = None,
+        include_public: bool = False,
+    ) -> list[dict[str, Any]]:
+        """
+        List agents you can communicate with (same-tenant + granted).
+        
+        Args:
+            query: Search query to include public agents.
+            include_public: Include all public agents.
+        
+        Returns:
+            List of available agents.
+        """
+        params: dict[str, Any] = {}
+        if query:
+            params["query"] = query
+        if include_public:
+            params["public"] = True
+        
+        result = await self._rpc("x-gopherhole/agents.available", params)
+        return result.get("agents", [])
+
+    async def discover_agents(
+        self,
+        query: Optional[str] = None,
+        category: Optional[str] = None,
+        tag: Optional[str] = None,
+        organization: Optional[str] = None,
+        verified: Optional[bool] = None,
+        sort: Optional[str] = None,  # 'smart', 'rating', 'popular', 'recent'
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ) -> dict[str, Any]:
+        """
+        Discover public agents in the marketplace.
+        Uses smart scoring: featured + verified + rating + recency - exposure.
+        
+        Args:
+            query: Search query.
+            category: Filter by category.
+            tag: Filter by tag.
+            organization: Filter by organization name or slug.
+            verified: Only verified organizations.
+            sort: Sort mode ('smart', 'rating', 'popular', 'recent').
+            limit: Max results (default 10, max 50).
+            offset: Pagination offset.
+        
+        Returns:
+            Dict with 'agents', 'count', 'offset'.
+        """
+        params: dict[str, Any] = {}
+        if query:
+            params["query"] = query
+        if category:
+            params["category"] = category
+        if tag:
+            params["tag"] = tag
+        if organization:
+            params["organization"] = organization
+        if verified is not None:
+            params["verified"] = verified
+        if sort:
+            params["sort"] = sort
+        if limit:
+            params["limit"] = limit
+        if offset:
+            params["offset"] = offset
+        
+        return await self._rpc("x-gopherhole/agents.discover", params)
+
     async def _rpc(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         """Make a JSON-RPC call to the A2A endpoint."""
         if not self._http:
