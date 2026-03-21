@@ -834,6 +834,8 @@ export class GopherHole extends EventEmitter<EventMap> {
     if (options?.tag) params.set('tag', options.tag);
     if (options?.skillTag) params.set('skillTag', options.skillTag);
     if (options?.contentMode) params.set('contentMode', options.contentMode);
+    if (options?.owner) params.set('owner', options.owner);
+    if (options?.verified) params.set('verified', 'true');
     if (options?.sort) params.set('sort', options.sort);
     if (options?.limit) params.set('limit', String(options.limit));
     if (options?.offset) params.set('offset', String(options.offset));
@@ -1017,6 +1019,10 @@ export interface DiscoverOptions {
   skillTag?: string;
   /** Filter by content mode (MIME type, e.g., 'text/markdown', 'image/png') */
   contentMode?: string;
+  /** Filter by organization/tenant name */
+  owner?: string;
+  /** Only show agents from verified organizations */
+  verified?: boolean;
   /** Sort order */
   sort?: 'rating' | 'popular' | 'recent';
   /** Max results (default 10, max 50; ignored when scope=tenant) */
