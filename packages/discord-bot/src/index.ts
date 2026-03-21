@@ -25,7 +25,7 @@ const client = new Client({
 });
 
 // API helper
-async function gopherholeApi(endpoint: string, options: RequestInit = {}) {
+async function gopherholeApi(endpoint: string, options: RequestInit = {}): Promise<any> {
   const res = await fetch(`${GOPHERHOLE_API}${endpoint}`, {
     ...options,
     headers: {
@@ -235,7 +235,7 @@ async function handleSearch(interaction: ChatInputCommandInteraction) {
     if (verified) params.set('verified', 'true');
     
     const res = await fetch(`${GOPHERHOLE_API}/discover/agents?${params}`);
-    const result = await res.json();
+    const result: any = await res.json();
 
     if (!result.agents?.length) {
       await interaction.editReply({ content: `🔍 No agents found for "${query}"` });
@@ -269,7 +269,7 @@ async function handleInfo(interaction: ChatInputCommandInteraction) {
   
   try {
     const res = await fetch(`${GOPHERHOLE_API}/discover/agents/${encodeURIComponent(agentId)}`);
-    const result = await res.json();
+    const result: any = await res.json();
 
     if (result.error || !result.agent) {
       await interaction.editReply({ content: `❌ Agent "${agentId}" not found` });
@@ -339,7 +339,7 @@ async function handleAutocomplete(interaction: AutocompleteInteraction) {
     
     try {
       const res = await fetch(`${GOPHERHOLE_API}/discover/agents/${encodeURIComponent(agentHandle)}`);
-      const result = await res.json();
+      const result: any = await res.json();
       
       if (!result.agent?.agentCard?.skills?.length) {
         await interaction.respond([{ name: 'No skills found', value: '' }]);
@@ -389,7 +389,7 @@ async function handleAutocomplete(interaction: AutocompleteInteraction) {
     } else {
       // Live search via discover API
       const res = await fetch(`${GOPHERHOLE_API}/discover/agents?q=${encodeURIComponent(query)}&limit=50`);
-      const result = await res.json();
+      const result: any = await res.json();
       
       if (!result.agents?.length) {
         results = [];
