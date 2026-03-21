@@ -224,11 +224,17 @@ async function handleEcho(interaction: ChatInputCommandInteraction) {
 
 async function handleSearch(interaction: ChatInputCommandInteraction) {
   const query = interaction.options.getString('query', true);
+  const owner = interaction.options.getString('owner', false);
+  const verified = interaction.options.getBoolean('verified', false);
   
   await interaction.deferReply();
   
   try {
-    const res = await fetch(`${GOPHERHOLE_API}/discover/agents?q=${encodeURIComponent(query)}&limit=5`);
+    const params = new URLSearchParams({ q: query, limit: '5' });
+    if (owner) params.set('owner', owner);
+    if (verified) params.set('verified', 'true');
+    
+    const res = await fetch(`${GOPHERHOLE_API}/discover/agents?${params}`);
     const result = await res.json();
 
     if (!result.agents?.length) {

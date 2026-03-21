@@ -80,6 +80,18 @@ const commands = [
             .setDescription('Search query')
             .setRequired(true)
         )
+        .addStringOption(opt =>
+          opt
+            .setName('owner')
+            .setDescription('Filter by organization (e.g., "GopherHole Official")')
+            .setRequired(false)
+        )
+        .addBooleanOption(opt =>
+          opt
+            .setName('verified')
+            .setDescription('Only show agents from verified organizations')
+            .setRequired(false)
+        )
     )
     .addSubcommand(sub =>
       sub
