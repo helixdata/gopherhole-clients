@@ -343,53 +343,112 @@ export class A2AConnectionManager {
   }
 
   /**
-   * List available agents from GopherHole
-   * Fetches same-tenant agents + agents with approved access + public agents
+   * Make an A2A JSON-RPC call
    */
-  async listAvailableAgents(): Promise<Array<{
-    id: string;
-    name: string;
-    description?: string;
-    accessType: 'same-tenant' | 'public' | 'granted';
-  }>> {
+  private async a2aRpc<T>(method: string, params?: Record<string, unknown>): Promise<T | null> {
     if (!this.config.apiKey) {
-      return [];
+      return null;
     }
 
     const hubUrl = this.config.bridgeUrl || 'wss://hub.gopherhole.ai/ws';
-    // Convert wss:// to https:// for API calls
     const apiBase = hubUrl.replace('wss://', 'https://').replace('/ws', '');
 
     try {
-      const response = await fetch(`${apiBase}/api/agents/available`, {
+      const response = await fetch(`${apiBase}/a2a`, {
+        method: 'POST',
         headers: {
           'Authorization': `Bearer ${this.config.apiKey}`,
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method,
+          params: params || {},
+          id: Date.now(),
+        }),
       });
 
       if (!response.ok) {
-        console.error(`[a2a] Failed to fetch agents: ${response.status}`);
-        return [];
+        console.error(`[a2a] RPC failed: ${response.status}`);
+        return null;
       }
 
-      const data = await response.json() as { agents: Array<{
-        id: string;
-        name: string;
-        description?: string;
-        access_type: string;
-      }> };
+      const data = await response.json() as { result?: T; error?: { message: string } };
+      if (data.error) {
+        console.error(`[a2a] RPC error: ${data.error.message}`);
+        return null;
+      }
 
-      return data.agents.map(a => ({
-        id: a.id,
-        name: a.name,
-        description: a.description,
-        accessType: a.access_type as 'same-tenant' | 'public' | 'granted',
-      }));
+      return data.result || null;
     } catch (err) {
-      console.error('[a2a] Error fetching available agents:', (err as Error).message);
+      console.error('[a2a] RPC error:', (err as Error).message);
+      return null;
+    }
+  }
+
+  /**
+   * List available agents from GopherHole (agents you have access to)
+   */
+  async listAvailableAgents(options?: { query?: string; public?: boolean }): Promise<Array<{
+    id: string;
+    name: string;
+    description?: string;
+    verified?: boolean;
+    accessType: 'same-tenant' | 'public' | 'granted';
+  }>> {
+    const result = await this.a2aRpc<{ agents: Array<{
+      id: string;
+      name: string;
+      description?: string;
+      verified?: boolean;
+      accessType: string;
+    }> }>('x-gopherhole/agents.available', options);
+
+    if (!result?.agents) {
       return [];
     }
+
+    return result.agents.map(a => ({
+      id: a.id,
+      name: a.name,
+      description: a.description,
+      verified: a.verified,
+      accessType: a.accessType as 'same-tenant' | 'public' | 'granted',
+    }));
+  }
+
+  /**
+   * Discover public agents in the marketplace
+   */
+  async discoverAgents(options?: { 
+    query?: string; 
+    category?: string;
+    tag?: string;
+    skillTag?: string;
+    contentMode?: string;
+    sort?: string;
+    verified?: boolean;
+    limit?: number;
+    offset?: number;
+    scope?: string;
+  }): Promise<Array<{
+    id: string;
+    name: string;
+    description?: string;
+    verified?: boolean;
+    tenantName?: string;
+    avgRating?: number;
+  }>> {
+    const result = await this.a2aRpc<{ agents: Array<{
+      id: string;
+      name: string;
+      description?: string;
+      verified?: boolean;
+      tenantName?: string;
+      avgRating?: number;
+    }> }>('x-gopherhole/agents.discover', options);
+
+    return result?.agents || [];
   }
 
   /**
