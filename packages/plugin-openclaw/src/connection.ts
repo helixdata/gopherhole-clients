@@ -453,6 +453,51 @@ export class A2AConnectionManager {
   }
 
   /**
+   * Discover agents near a geographic location
+   */
+  async discoverNearby(options: { 
+    lat: number;
+    lng: number;
+    radius?: number;
+    tag?: string;
+    category?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<Array<{
+    id: string;
+    name: string;
+    description?: string;
+    verified?: boolean;
+    tenantName?: string;
+    avgRating?: number;
+    location?: {
+      name: string;
+      lat: number;
+      lng: number;
+      country: string;
+    };
+    distance?: number;
+  }>> {
+    const result = await this.a2aRpc<{ agents: Array<{
+      id: string;
+      name: string;
+      description?: string;
+      verified?: boolean;
+      tenantName?: string;
+      avgRating?: number;
+      location?: {
+        name: string;
+        lat: number;
+        lng: number;
+        country: string;
+      };
+      distance?: number;
+    }> }>('x-gopherhole/agents.discover.nearby', options);
+
+    return result?.agents || [];
+  }
+
+  /**
    * List connection status (for backward compatibility)
    */
   listAgents(): Array<{ id: string; name: string; connected: boolean }> {

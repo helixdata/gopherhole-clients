@@ -165,6 +165,40 @@ export const AGENT_TOOLS: Tool[] = [
       required: ['agentId', 'message'],
     },
   },
+  {
+    name: 'agent_discover_nearby',
+    description: 'Find agents near a geographic location. Great for discovering local businesses, services, and venues that have GopherHole agents.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        lat: {
+          type: 'number',
+          description: 'Latitude of search center',
+        },
+        lng: {
+          type: 'number',
+          description: 'Longitude of search center',
+        },
+        radius: {
+          type: 'number',
+          description: 'Search radius in kilometers (default: 10, max: 500)',
+        },
+        tag: {
+          type: 'string',
+          description: 'Filter by tag (e.g., "retail", "food", "services")',
+        },
+        category: {
+          type: 'string',
+          description: 'Filter by category',
+        },
+        limit: {
+          type: 'number',
+          description: 'Maximum number of agents to return (default: 20, max: 50)',
+        },
+      },
+      required: ['lat', 'lng'],
+    },
+  },
 ];
 
 /**

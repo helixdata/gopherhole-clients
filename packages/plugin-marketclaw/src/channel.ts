@@ -716,6 +716,50 @@ export class A2AChannel implements Channel {
   }
 
   /**
+   * Discover agents near a geographic location via GopherHole SDK
+   */
+  async discoverNearby(options: {
+    lat: number;
+    lng: number;
+    radius?: number;
+    tag?: string;
+    category?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<Array<{ 
+    id: string; 
+    name: string; 
+    description?: string; 
+    skills: string[];
+    location?: {
+      name: string;
+      lat: number;
+      lng: number;
+      country: string;
+    };
+    distance?: number;
+  }>> {
+    if (!this.gopherholeClient) {
+      return [];
+    }
+
+    try {
+      const result = await this.gopherholeClient.discoverNearby(options);
+      return result.agents.map(agent => ({
+        id: agent.id,
+        name: agent.name,
+        description: agent.description ?? undefined,
+        skills: agent.tags || [],
+        location: agent.location,
+        distance: agent.distance,
+      }));
+    } catch (error) {
+      logger.error({ error: (error as Error).message }, 'Error discovering nearby agents via SDK');
+      return [];
+    }
+  }
+
+  /**
    * Check if GopherHole is connected
    */
   isGopherHoleConnected(): boolean {

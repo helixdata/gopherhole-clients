@@ -907,6 +907,28 @@ export class GopherHole extends EventEmitter<EventMap> {
   }
 
   /**
+   * Discover agents near a geographic location
+   */
+  async discoverNearby(options: DiscoverNearbyOptions): Promise<DiscoverNearbyResult> {
+    const params = new URLSearchParams();
+    
+    params.set('lat', String(options.lat));
+    params.set('lng', String(options.lng));
+    if (options.radius) params.set('radius', String(options.radius));
+    if (options.tag) params.set('tag', options.tag);
+    if (options.category) params.set('category', options.category);
+    if (options.limit) params.set('limit', String(options.limit));
+    if (options.offset) params.set('offset', String(options.offset));
+    
+    const response = await fetch(`${this.apiUrl}/api/discover/agents/nearby?${params}`, {
+      headers: {
+        'Authorization': `Bearer ${this.apiKey}`,
+      },
+    });
+    return response.json();
+  }
+
+  /**
    * Get featured/curated agents
    */
   async getFeatured(): Promise<{ featured: PublicAgent[] }> {
@@ -1035,6 +1057,43 @@ export interface DiscoverOptions {
 
 export interface DiscoverResult {
   agents: PublicAgent[];
+  count: number;
+  offset: number;
+}
+
+export interface DiscoverNearbyOptions {
+  /** Latitude of search center */
+  lat: number;
+  /** Longitude of search center */
+  lng: number;
+  /** Search radius in km (default 10, max 500) */
+  radius?: number;
+  /** Filter by tag */
+  tag?: string;
+  /** Filter by category */
+  category?: string;
+  /** Max results (default 20, max 50) */
+  limit?: number;
+  /** Pagination offset */
+  offset?: number;
+}
+
+export interface NearbyAgent extends PublicAgent {
+  /** Agent's location */
+  location: {
+    name: string;
+    lat: number;
+    lng: number;
+    country: string;
+  };
+  /** Distance from search center in km */
+  distance: number;
+}
+
+export interface DiscoverNearbyResult {
+  agents: NearbyAgent[];
+  center: { lat: number; lng: number };
+  radius: number;
   count: number;
   offset: number;
 }

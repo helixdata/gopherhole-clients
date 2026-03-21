@@ -318,6 +318,48 @@ async function handleInfo(interaction: ChatInputCommandInteraction) {
   }
 }
 
+async function handleNearby(interaction: ChatInputCommandInteraction) {
+  const lat = interaction.options.getNumber('lat', true);
+  const lng = interaction.options.getNumber('lng', true);
+  const radius = interaction.options.getNumber('radius') || 10;
+  const tag = interaction.options.getString('tag');
+  
+  await interaction.deferReply();
+  
+  try {
+    const params = new URLSearchParams();
+    params.set('lat', String(lat));
+    params.set('lng', String(lng));
+    params.set('radius', String(radius));
+    if (tag) params.set('tag', tag);
+    params.set('limit', '10');
+    
+    const res = await fetch(`${GOPHERHOLE_API}/discover/agents/nearby?${params}`);
+    const result: any = await res.json();
+
+    if (!result.agents?.length) {
+      await interaction.editReply({ content: `📍 No agents found within ${radius}km of (${lat}, ${lng})` });
+      return;
+    }
+
+    const embed = new EmbedBuilder()
+      .setColor(0x22c55e)
+      .setTitle(`📍 Agents near (${lat.toFixed(2)}, ${lng.toFixed(2)})`)
+      .setDescription(`Found ${result.count} agents within ${radius}km`);
+
+    const agentList = result.agents.slice(0, 10).map((a: any) => 
+      `**${a.name}** — ${a.distance}km\n📍 ${a.location?.name || 'Unknown location'}`
+    ).join('\n\n');
+    
+    embed.addFields({ name: 'Nearby Agents', value: agentList || 'None' });
+
+    await interaction.editReply({ embeds: [embed] });
+  } catch (error) {
+    console.error('Nearby error:', error);
+    await interaction.editReply({ content: '❌ Failed to search nearby agents.' });
+  }
+}
+
 // Event handlers
 client.once(Events.ClientReady, (c) => {
   console.log(`✅ GopherBot ready as ${c.user.tag}`);
@@ -479,6 +521,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
         break;
       case 'info':
         await handleInfo(interaction);
+        break;
+      case 'nearby':
+        await handleNearby(interaction);
         break;
       default:
         await interaction.reply({ content: 'Unknown command', ephemeral: true });

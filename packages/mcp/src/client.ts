@@ -44,6 +44,31 @@ export interface DiscoverResult {
   count: number;
 }
 
+export interface DiscoverNearbyResult {
+  agents: Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    category: string | null;
+    tags: string[];
+    pricing: 'free' | 'paid' | 'contact';
+    avgRating: number;
+    ratingCount: number;
+    tenantName: string;
+    location: {
+      name: string;
+      lat: number;
+      lng: number;
+      country: string;
+    };
+    distance: number;
+  }>;
+  center: { lat: number; lng: number };
+  radius: number;
+  count: number;
+  offset: number;
+}
+
 export class GopherHoleClient {
   private apiKey: string;
   private apiUrl: string;
@@ -238,6 +263,40 @@ export class GopherHoleClient {
     }
 
     return response.json() as Promise<DiscoverResult>;
+  }
+
+  /**
+   * Discover agents near a geographic location
+   */
+  async discoverNearby(options: {
+    lat: number;
+    lng: number;
+    radius?: number;
+    tag?: string;
+    category?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<DiscoverNearbyResult> {
+    const params = new URLSearchParams();
+    params.set('lat', String(options.lat));
+    params.set('lng', String(options.lng));
+    if (options.radius) params.set('radius', String(options.radius));
+    if (options.tag) params.set('tag', options.tag);
+    if (options.category) params.set('category', options.category);
+    if (options.limit) params.set('limit', String(options.limit));
+    if (options.offset) params.set('offset', String(options.offset));
+
+    const response = await fetch(`${this.apiUrl}/api/discover/agents/nearby?${params}`, {
+      headers: {
+        'Authorization': `Bearer ${this.apiKey}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Nearby discovery failed: ${response.statusText}`);
+    }
+
+    return response.json() as Promise<DiscoverNearbyResult>;
   }
 
   /**

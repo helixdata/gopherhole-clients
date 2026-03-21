@@ -197,6 +197,38 @@ async function main() {
           };
         }
 
+        case 'agent_discover_nearby': {
+          const lat = args?.lat as number;
+          const lng = args?.lng as number;
+          const radius = args?.radius as number | undefined;
+          const tag = args?.tag as string | undefined;
+          const category = args?.category as string | undefined;
+          const limit = args?.limit as number | undefined;
+          
+          if (lat === undefined || lng === undefined) {
+            return {
+              content: [{ type: 'text', text: 'Error: lat and lng are required' }],
+              isError: true,
+            };
+          }
+
+          const result = await client.discoverNearby({ lat, lng, radius, tag, category, limit });
+          
+          if (result.agents.length === 0) {
+            return {
+              content: [{ type: 'text', text: `No agents found within ${result.radius}km of (${lat}, ${lng})` }],
+            };
+          }
+
+          const agentList = result.agents.map(a => 
+            `• **${a.name}** (${a.id}) - ${a.distance}km away\n  📍 ${a.location.name}\n  ${a.description || 'No description'}\n  Rating: ${a.avgRating.toFixed(1)} ⭐`
+          ).join('\n\n');
+          
+          return {
+            content: [{ type: 'text', text: `Found ${result.count} agents within ${result.radius}km:\n\n${agentList}` }],
+          };
+        }
+
         // ============================================================
         // WORKSPACE TOOLS
         // ============================================================

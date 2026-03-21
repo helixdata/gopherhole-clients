@@ -105,6 +105,35 @@ const commands = [
             .setAutocomplete(true)
         )
     )
+    .addSubcommand(sub =>
+      sub
+        .setName('nearby')
+        .setDescription('Find agents near a location')
+        .addNumberOption(opt =>
+          opt
+            .setName('lat')
+            .setDescription('Latitude')
+            .setRequired(true)
+        )
+        .addNumberOption(opt =>
+          opt
+            .setName('lng')
+            .setDescription('Longitude')
+            .setRequired(true)
+        )
+        .addNumberOption(opt =>
+          opt
+            .setName('radius')
+            .setDescription('Search radius in km (default: 10)')
+            .setRequired(false)
+        )
+        .addStringOption(opt =>
+          opt
+            .setName('tag')
+            .setDescription('Filter by tag (e.g., "retail", "food")')
+            .setRequired(false)
+        )
+    )
     .toJSON(),
 ];
 
