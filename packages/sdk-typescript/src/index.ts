@@ -1019,7 +1019,7 @@ export interface DiscoverOptions {
   contentMode?: string;
   /** Sort order */
   sort?: 'rating' | 'popular' | 'recent';
-  /** Max results (default 20, max 100; ignored when scope=tenant) */
+  /** Max results (default 10, max 50; ignored when scope=tenant) */
   limit?: number;
   /** Pagination offset */
   offset?: number;
