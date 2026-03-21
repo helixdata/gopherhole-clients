@@ -152,9 +152,15 @@ async function main() {
         case 'agent_discover': {
           const query = args?.query as string;
           const category = args?.category as string;
+          const tag = args?.tag as string;
+          const skillTag = args?.skillTag as string;
+          const contentMode = args?.contentMode as string;
+          const sort = args?.sort as string;
           const limit = args?.limit as number;
+          const offset = args?.offset as number;
+          const scope = args?.scope as string;
           
-          const result = await client.discover({ query, category, limit });
+          const result = await client.discover({ query, category, tag, skillTag, contentMode, sort, limit, offset, scope });
           
           if (result.agents.length === 0) {
             return {

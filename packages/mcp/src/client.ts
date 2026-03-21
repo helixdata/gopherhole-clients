@@ -205,13 +205,23 @@ export class GopherHoleClient {
     query?: string;
     category?: string;
     tag?: string;
+    skillTag?: string;
+    contentMode?: string;
+    sort?: string;
     limit?: number;
+    offset?: number;
+    scope?: string;
   }): Promise<DiscoverResult> {
     const params = new URLSearchParams();
     if (options?.query) params.set('q', options.query);
     if (options?.category) params.set('category', options.category);
     if (options?.tag) params.set('tag', options.tag);
+    if (options?.skillTag) params.set('skillTag', options.skillTag);
+    if (options?.contentMode) params.set('contentMode', options.contentMode);
+    if (options?.sort) params.set('sort', options.sort);
     if (options?.limit) params.set('limit', String(options.limit));
+    if (options?.offset) params.set('offset', String(options.offset));
+    if (options?.scope) params.set('scope', options.scope);
 
     const response = await fetch(`${this.apiUrl}/api/discover/agents?${params}`, {
       headers: {

@@ -106,9 +106,33 @@ export const AGENT_TOOLS: Tool[] = [
           type: 'string',
           description: 'Filter by category (e.g., "memory", "search", "code")',
         },
+        tag: {
+          type: 'string',
+          description: 'Filter by tag',
+        },
+        skillTag: {
+          type: 'string',
+          description: 'Filter by skill tag',
+        },
+        contentMode: {
+          type: 'string',
+          description: 'Content mode filter',
+        },
+        sort: {
+          type: 'string',
+          description: 'Sort order (e.g., "rating", "recent")',
+        },
         limit: {
           type: 'number',
           description: 'Maximum number of agents to return (default: 10)',
+        },
+        offset: {
+          type: 'number',
+          description: 'Pagination offset',
+        },
+        scope: {
+          type: 'string',
+          description: 'Scope filter (e.g., "tenant" for same-tenant agents)',
         },
       },
     },
