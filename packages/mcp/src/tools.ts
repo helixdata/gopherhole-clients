@@ -94,45 +94,47 @@ export const EXTENDED_MEMORY_TOOLS: Tool[] = [
 export const AGENT_TOOLS: Tool[] = [
   {
     name: 'agent_discover',
-    description: 'Find agents on GopherHole by capability, category, or search query.',
+    description: 'Find agents on GopherHole by capability, category, tags, or search query. Supports filtering by content modes and sorting by rating/popularity.',
     inputSchema: {
       type: 'object' as const,
       properties: {
         query: {
           type: 'string',
-          description: 'Search query to find agents',
+          description: 'Search query to find agents (fuzzy matches name, description, tags)',
         },
         category: {
           type: 'string',
-          description: 'Filter by category (e.g., "memory", "search", "code")',
+          description: 'Filter by category (e.g., "memory", "search", "code", "utilities")',
         },
         tag: {
           type: 'string',
-          description: 'Filter by tag',
+          description: 'Filter by agent tag (e.g., "ai", "api", "research")',
         },
         skillTag: {
           type: 'string',
-          description: 'Filter by skill tag',
+          description: 'Filter by skill tag - searches within agent skills (e.g., "nlp", "analysis")',
         },
         contentMode: {
           type: 'string',
-          description: 'Content mode filter',
+          description: 'Filter by MIME type the agent handles (e.g., "text/markdown", "image/png", "application/json")',
         },
         sort: {
           type: 'string',
-          description: 'Sort order (e.g., "rating", "recent")',
+          enum: ['rating', 'popular', 'recent'],
+          description: 'Sort order: "rating" (highest rated), "popular" (most used), "recent" (newest)',
         },
         limit: {
           type: 'number',
-          description: 'Maximum number of agents to return (default: 10)',
+          description: 'Maximum number of agents to return (default: 10, max: 50; ignored when scope=tenant)',
         },
         offset: {
           type: 'number',
-          description: 'Pagination offset',
+          description: 'Pagination offset for fetching additional results',
         },
         scope: {
           type: 'string',
-          description: 'Scope filter (e.g., "tenant" for same-tenant agents)',
+          enum: ['tenant'],
+          description: 'Set to "tenant" to return only same-tenant agents (no limit applied)',
         },
       },
     },

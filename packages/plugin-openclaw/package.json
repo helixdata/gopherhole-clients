@@ -8,6 +8,8 @@
   "scripts": {
     "build": "tsc",
     "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "prepublishOnly": "npm run build"
   },
   "clawdbot": {
@@ -36,7 +38,8 @@
   },
   "devDependencies": {
     "@types/uuid": "^10.0.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^1.6.0"
   },
   "peerDependencies": {
     "openclaw": "*"

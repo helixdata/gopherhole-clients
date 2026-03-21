@@ -18,6 +18,8 @@
   "scripts": {
     "build": "tsc",
     "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -44,7 +46,8 @@
   "devDependencies": {
     "@types/uuid": "^10.0.0",
     "@types/ws": "^8.5.10",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^1.6.0"
   },
   "peerDependencies": {
     "marketclaw": "*"
