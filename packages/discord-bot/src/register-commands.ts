@@ -117,14 +117,14 @@ async function registerCommands() {
     if (GUILD_ID) {
       // Register to specific guild (instant, good for testing)
       await rest.put(
-        Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
+        Routes.applicationGuildCommands(CLIENT_ID!, GUILD_ID),
         { body: commands }
       );
       console.log(`✅ Commands registered to guild ${GUILD_ID}`);
     } else {
       // Register globally (can take up to 1 hour to propagate)
       await rest.put(
-        Routes.applicationCommands(CLIENT_ID),
+        Routes.applicationCommands(CLIENT_ID!),
         { body: commands }
       );
       console.log('✅ Commands registered globally');
