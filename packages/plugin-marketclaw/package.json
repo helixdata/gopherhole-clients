@@ -1,6 +1,6 @@
 {
   "name": "@gopherhole/marketclaw",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "GopherHole A2A channel plugin for MarketClaw - connect your marketing agent to the GopherHole network",
   "type": "module",
   "main": "dist/index.js",

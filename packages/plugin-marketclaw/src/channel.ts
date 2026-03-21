@@ -684,13 +684,23 @@ export class A2AChannel implements Channel {
   /**
    * Discover agents via GopherHole SDK
    */
-  async discoverAgents(): Promise<Array<{ id: string; name: string; description?: string; skills: string[] }>> {
+  async discoverAgents(options?: {
+    query?: string;
+    category?: string;
+    tag?: string;
+    skillTag?: string;
+    contentMode?: string;
+    sort?: 'rating' | 'popular' | 'recent';
+    limit?: number;
+    offset?: number;
+    scope?: 'tenant';
+  }): Promise<Array<{ id: string; name: string; description?: string; skills: string[] }>> {
     if (!this.gopherholeClient) {
       return [];
     }
 
     try {
-      const result = await this.gopherholeClient.discover({ limit: 50 });
+      const result = await this.gopherholeClient.discover({ limit: 50, ...options });
       return result.agents.map(agent => ({
         id: agent.id,
         name: agent.name,
