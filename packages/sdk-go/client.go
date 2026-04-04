@@ -301,7 +301,7 @@ func (c *Client) Send(ctx context.Context, toAgentID string, payload MessagePayl
 	}
 
 	var task Task
-	if err := c.rpc(ctx, "message/send", params, &task); err != nil {
+	if err := c.rpc(ctx, "SendMessage", params, &task); err != nil {
 		return nil, err
 	}
 	return &task, nil
@@ -416,7 +416,7 @@ func (c *Client) GetTask(ctx context.Context, taskID string, historyLength int) 
 	}
 
 	var task Task
-	if err := c.rpc(ctx, "tasks/get", params, &task); err != nil {
+	if err := c.rpc(ctx, "GetTask", params, &task); err != nil {
 		return nil, err
 	}
 	return &task, nil
@@ -429,7 +429,7 @@ func (c *Client) CancelTask(ctx context.Context, taskID string) (*Task, error) {
 	}
 
 	var task Task
-	if err := c.rpc(ctx, "tasks/cancel", params, &task); err != nil {
+	if err := c.rpc(ctx, "CancelTask", params, &task); err != nil {
 		return nil, err
 	}
 	return &task, nil
@@ -451,7 +451,7 @@ func (c *Client) Reply(ctx context.Context, taskID string, payload MessagePayloa
 	}
 
 	var result Task
-	if err := c.rpc(ctx, "message/send", params, &result); err != nil {
+	if err := c.rpc(ctx, "SendMessage", params, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
@@ -876,6 +876,7 @@ func (c *Client) rpc(ctx context.Context, method string, params interface{}, res
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+	httpReq.Header.Set("A2A-Version", "1.0")
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {

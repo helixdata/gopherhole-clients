@@ -413,7 +413,7 @@ class GopherHole:
                 options.model_dump(by_alias=True, exclude_none=True)
             )
         
-        result = await self._rpc("message/send", params)
+        result = await self._rpc("SendMessage", params)
         return Task(**result)
 
     async def send_text(
@@ -557,7 +557,7 @@ class GopherHole:
             "configuration": {"contextId": task.context_id},
         }
         
-        result = await self._rpc("message/send", params)
+        result = await self._rpc("SendMessage", params)
         return Task(**result)
 
     async def reply_text(self, task_id: str, text: str) -> Task:
@@ -607,7 +607,7 @@ class GopherHole:
         if history_length is not None:
             params["historyLength"] = history_length
         
-        result = await self._rpc("tasks/get", params)
+        result = await self._rpc("GetTask", params)
         return Task(**result)
 
     async def list_tasks(
@@ -635,7 +635,7 @@ class GopherHole:
         if page_token:
             params["pageToken"] = page_token
         
-        result = await self._rpc("tasks/list", params)
+        result = await self._rpc("ListTasks", params)
         return TaskListResult(**result)
 
     async def cancel_task(self, task_id: str) -> Task:
@@ -648,7 +648,7 @@ class GopherHole:
         Returns:
             The canceled task.
         """
-        result = await self._rpc("tasks/cancel", {"id": task_id})
+        result = await self._rpc("CancelTask", {"id": task_id})
         return Task(**result)
 
     # Discovery methods (GopherHole extension)
@@ -733,7 +733,10 @@ class GopherHole:
         if not self._http:
             self._http = httpx.AsyncClient(
                 base_url=self.api_url,
-                headers={"Authorization": f"Bearer {self.api_key}"},
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "A2A-Version": "1.0",
+                },
                 timeout=30.0,
             )
         
