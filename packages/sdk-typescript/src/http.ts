@@ -3,7 +3,7 @@
  * Implements A2A JSON-RPC over HTTP with SSE streaming support
  */
 
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'eventemitter3';
 
 export interface A2AClientOptions {
   baseUrl?: string;
