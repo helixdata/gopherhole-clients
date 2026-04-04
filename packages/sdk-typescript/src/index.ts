@@ -3,6 +3,22 @@ import { EventEmitter } from 'eventemitter3';
 // Re-export types
 export * from './types';
 
+// Re-export HTTP client for A2A JSON-RPC over HTTP
+export { A2AClient, TaskStream } from './http.js';
+export type {
+  A2AClientOptions,
+  Task as HttpTask,
+  TaskStatus as HttpTaskStatus,
+  Artifact as HttpArtifact,
+  TaskStatusUpdateEvent,
+  TaskArtifactUpdateEvent,
+  StreamResponse,
+  SendMessageConfig,
+  PushNotificationConfig,
+  AvailableAgent,
+  DiscoveredAgent,
+} from './http.js';
+
 // Import workspace types
 import type {
   Workspace,

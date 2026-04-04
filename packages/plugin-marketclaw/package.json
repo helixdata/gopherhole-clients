@@ -38,7 +38,7 @@
   "homepage": "https://gopherhole.ai",
   "license": "MIT",
   "dependencies": {
-    "@gopherhole/sdk": "^0.3.7",
+    "@gopherhole/sdk": "^0.4.5",
     "pino": "^9.0.0",
     "uuid": "^10.0.0",
     "ws": "^8.18.0"
