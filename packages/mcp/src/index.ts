@@ -13,7 +13,8 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 
-import { GopherHoleClient } from './client.js';
+import { GopherHole, TransportMode } from '@gopherhole/sdk';
+import type { MemoryType } from '@gopherhole/sdk';
 import { ALL_TOOLS } from './tools.js';
 
 // Default memory agent ID (can be overridden via env)
@@ -46,14 +47,23 @@ function formatRecallMessage(query: string, limit?: number): string {
  */
 async function main() {
   // Initialize GopherHole client
-  let client: GopherHoleClient;
-  try {
-    client = GopherHoleClient.fromEnv();
-  } catch (error) {
+  const apiKey = process.env.GOPHERHOLE_API_KEY;
+  if (!apiKey) {
     console.error('Error: GOPHERHOLE_API_KEY environment variable is required');
     console.error('Get your API key at https://gopherhole.ai');
     process.exit(1);
   }
+
+  const transportMode = (process.env.GOPHERHOLE_TRANSPORT || 'http') as TransportMode;
+  const apiUrl = process.env.GOPHERHOLE_API_URL || 'https://hub.gopherhole.ai';
+  const hubUrl = apiUrl.replace('https://', 'wss://').replace('http://', 'ws://') + '/ws';
+
+  const client = new GopherHole({
+    apiKey,
+    hubUrl,
+    transport: transportMode,
+    autoReconnect: false,
+  });
 
   // Create MCP server
   const server = new Server(
@@ -162,7 +172,7 @@ async function main() {
           const offset = args?.offset as number;
           const scope = args?.scope as string;
           
-          const result = await client.discover({ query, category, tag, skillTag, contentMode, owner, verified, sort, limit, offset, scope });
+          const result = await client.discover({ query, category, tag, skillTag, contentMode, owner, verified, sort: sort as any, limit, offset, scope: scope as any });
           
           if (result.agents.length === 0) {
             return {
@@ -325,7 +335,7 @@ async function main() {
           const result = await client.workspaceStore({
             workspace_id: workspaceId,
             content,
-            type: memType,
+            type: memType ?? 'fact',
             tags,
           });
           
@@ -350,7 +360,7 @@ async function main() {
           const result = await client.workspaceQuery({
             workspace_id: workspaceId,
             query,
-            type: memType,
+            type: memType as MemoryType | undefined,
             limit,
           });
           

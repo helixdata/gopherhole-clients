@@ -32,7 +32,8 @@
     "url": "https://github.com/gopherhole/mcp"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0"
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@gopherhole/sdk": "file:../sdk-typescript"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
