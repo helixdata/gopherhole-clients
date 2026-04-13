@@ -82,6 +82,20 @@ func WithRequestTimeout(d time.Duration) ClientOption {
 	}
 }
 
+// WithTransport sets the transport mode (http, ws, auto). Default is auto.
+func WithTransport(mode TransportMode) ClientOption {
+	return func(c *Client) {
+		c.transportMode = mode
+	}
+}
+
+// WithWSFallback enables HTTP fallback when WebSocket is not connected (ws mode only).
+func WithWSFallback(enabled bool) ClientOption {
+	return func(c *Client) {
+		c.wsFallback = enabled
+	}
+}
+
 // WithAgentCard sets the agent card to register on connect.
 func WithAgentCard(card *AgentCard) ClientOption {
 	return func(c *Client) {
@@ -116,6 +130,12 @@ type Client struct {
 	requestTimeout       time.Duration
 	httpClient           *http.Client
 	agentCard            *AgentCard
+	transportMode        TransportMode
+	wsFallback           bool
+
+	// Transport layer
+	transport   Transport
+	wsTransport *wsTransport
 
 	// WebSocket state
 	conn              *websocket.Conn
@@ -151,6 +171,8 @@ func New(apiKey string, opts ...ClientOption) *Client {
 		maxReconnectDelay:    5 * time.Minute,
 		maxReconnectAttempts: 0, // 0 = infinite
 		requestTimeout:       30 * time.Second,
+		transportMode:        TransportAuto,
+		wsFallback:           true,
 		done:                 make(chan struct{}),
 	}
 
@@ -168,6 +190,24 @@ func New(apiKey string, opts ...ClientOption) *Client {
 		c.apiURL = strings.Replace(c.hubURL, "/ws", "", 1)
 		c.apiURL = strings.Replace(c.apiURL, "wss://", "https://", 1)
 		c.apiURL = strings.Replace(c.apiURL, "ws://", "http://", 1)
+	}
+
+	// Initialize transport based on mode
+	switch c.transportMode {
+	case TransportWS:
+		wst := newWSTransport(
+			func() *websocket.Conn { return c.conn },
+			&c.connMu,
+			c.requestTimeout,
+			c.wsFallback,
+			c.apiURL, c.apiKey, c.httpClient,
+		)
+		c.wsTransport = wst
+		c.transport = wst
+	case TransportHTTP:
+		c.transport = newHTTPTransport(c.apiURL, c.apiKey, c.httpClient, c.requestTimeout)
+	default: // auto
+		c.transport = newHTTPTransport(c.apiURL, c.apiKey, c.httpClient, c.requestTimeout)
 	}
 
 	return c
@@ -214,7 +254,17 @@ func (c *Client) OnReconnecting(h ReconnectingHandler) {
 }
 
 // Connect establishes a WebSocket connection to the hub.
+// For TransportHTTP mode, this is a no-op since all RPC goes over HTTP.
 func (c *Client) Connect(ctx context.Context) error {
+	if c.transportMode == TransportHTTP {
+		c.ctx, c.cancel = context.WithCancel(ctx)
+		c.connected.Store(true)
+		if c.onConnect != nil {
+			c.onConnect()
+		}
+		return nil
+	}
+
 	c.ctx, c.cancel = context.WithCancel(ctx)
 
 	header := http.Header{}
@@ -253,6 +303,9 @@ func (c *Client) Disconnect() {
 	c.autoReconnect = false
 	if c.cancel != nil {
 		c.cancel()
+	}
+	if c.wsTransport != nil {
+		c.wsTransport.Cleanup()
 	}
 	c.connMu.Lock()
 	if c.conn != nil {
@@ -858,53 +911,7 @@ func (c *Client) DiscoverAgents(ctx context.Context, opts *DiscoverAgentsOptions
 // Internal methods
 
 func (c *Client) rpc(ctx context.Context, method string, params interface{}, result interface{}) error {
-	req := jsonRPCRequest{
-		JSONRPC: "2.0",
-		Method:  method,
-		Params:  params,
-		ID:      c.rpcCounter.Add(1),
-	}
-
-	body, err := json.Marshal(req)
-	if err != nil {
-		return fmt.Errorf("marshal request: %w", err)
-	}
-
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.apiURL+"/a2a", bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("create request: %w", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
-	httpReq.Header.Set("A2A-Version", "1.0")
-
-	resp, err := c.httpClient.Do(httpReq)
-	if err != nil {
-		return fmt.Errorf("http request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("read response: %w", err)
-	}
-
-	var rpcResp jsonRPCResponse
-	if err := json.Unmarshal(respBody, &rpcResp); err != nil {
-		return fmt.Errorf("unmarshal response: %w", err)
-	}
-
-	if rpcResp.Error != nil {
-		return fmt.Errorf("rpc error %d: %s", rpcResp.Error.Code, rpcResp.Error.Message)
-	}
-
-	if result != nil && rpcResp.Result != nil {
-		if err := json.Unmarshal(rpcResp.Result, result); err != nil {
-			return fmt.Errorf("unmarshal result: %w", err)
-		}
-	}
-
-	return nil
+	return c.transport.Request(ctx, method, params, result)
 }
 
 func (c *Client) httpGet(ctx context.Context, url string, result interface{}) error {
@@ -983,6 +990,11 @@ func (c *Client) readLoop() {
 				c.onError(err)
 			}
 			return
+		}
+
+		// Intercept JSON-RPC responses for wsTransport
+		if c.wsTransport != nil && c.wsTransport.HandleMessage(data) {
+			continue
 		}
 
 		var msg wsMessage
