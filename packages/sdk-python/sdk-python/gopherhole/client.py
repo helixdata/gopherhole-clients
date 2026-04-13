@@ -12,6 +12,12 @@ import httpx
 import websockets
 from websockets.client import WebSocketClientProtocol
 
+from gopherhole.transport import (
+    TransportMode,
+    HttpTransport,
+    WsTransport,
+    AutoTransport,
+)
 from gopherhole.types import (
     AgentCategory,
     AgentInfoResult,
@@ -67,6 +73,8 @@ class GopherHole:
         *,
         hub_url: str = DEFAULT_HUB_URL,
         api_url: Optional[str] = None,
+        transport: TransportMode = "auto",
+        ws_fallback: bool = True,
         agent_card: Optional[dict] = None,
         auto_reconnect: bool = True,
         reconnect_delay: float = 1.0,
@@ -76,12 +84,14 @@ class GopherHole:
     ):
         """
         Initialize the GopherHole client.
-        
+
         Args:
             api_key: Your GopherHole API key (starts with gph_).
                     If not provided, reads from GOPHERHOLE_API_KEY env var.
             hub_url: WebSocket URL for the hub (default: production).
             api_url: HTTP API URL (derived from hub_url if not provided).
+            transport: Transport mode: "http", "ws", or "auto" (default: "auto").
+            ws_fallback: Fall back to HTTP if WebSocket disconnects (only for "ws" mode, default: True).
             agent_card: Agent card to register on connect (name, description, skills).
             auto_reconnect: Whether to auto-reconnect on disconnect.
             reconnect_delay: Initial delay between reconnect attempts (seconds).
@@ -94,23 +104,40 @@ class GopherHole:
             raise ValueError(
                 "API key required. Pass api_key or set GOPHERHOLE_API_KEY env var."
             )
-        
+
         self.hub_url = hub_url
         self.api_url = api_url or hub_url.replace("/ws", "").replace("wss://", "https://").replace("ws://", "http://")
+        self.transport_mode: TransportMode = transport
         self.agent_card = agent_card
         self.auto_reconnect = auto_reconnect
         self.reconnect_delay = reconnect_delay
         self.max_reconnect_delay = max_reconnect_delay
         self.max_reconnect_attempts = max_reconnect_attempts
         self.request_timeout = request_timeout
-        
+
         self._ws: Optional[WebSocketClientProtocol] = None
         self._http: Optional[httpx.AsyncClient] = None
         self._agent_id: Optional[str] = None
         self._reconnect_attempts = 0
         self._running = False
         self._ping_task: Optional[asyncio.Task] = None
-        
+        self._ws_transport: Optional[WsTransport] = None
+
+        # Initialize transport based on mode
+        if self.transport_mode == "http":
+            self._transport = HttpTransport(self.api_url, self.api_key, self.request_timeout)
+        elif self.transport_mode == "ws":
+            self._ws_transport = WsTransport(
+                lambda: self._ws,
+                self.request_timeout,
+                ws_fallback,
+                self.api_url,
+                self.api_key,
+            )
+            self._transport = self._ws_transport
+        else:  # auto
+            self._transport = AutoTransport(self.api_url, self.api_key, self.request_timeout)
+
         # Event handlers
         self._on_connect: Optional[Callable[[], Any]] = None
         self._on_disconnect: Optional[Callable[[str], Any]] = None
@@ -187,7 +214,15 @@ class GopherHole:
         return msg.is_system_message() if hasattr(msg, "is_system_message") else False
 
     async def connect(self) -> None:
-        """Connect to the GopherHole hub via WebSocket."""
+        """
+        Connect to the GopherHole hub via WebSocket.
+        For transport="http", this is a no-op.
+        For transport="ws", this is required before sending messages.
+        For transport="auto", this is optional and enables push events.
+        """
+        if self.transport_mode == "http":
+            return
+
         if self._http is None:
             self._http = httpx.AsyncClient(
                 base_url=self.api_url,
@@ -243,7 +278,10 @@ class GopherHole:
         """Disconnect from the hub."""
         self._running = False
         self.auto_reconnect = False
-        
+
+        if self._ws_transport:
+            self._ws_transport.cleanup()
+
         if self._ping_task:
             self._ping_task.cancel()
             self._ping_task = None
@@ -315,6 +353,10 @@ class GopherHole:
 
     async def _handle_message(self, data: dict) -> None:
         """Handle an incoming WebSocket message."""
+        # Route JSON-RPC responses to the WsTransport (for transport="ws" mode)
+        if self._ws_transport and self._ws_transport.handle_message(data):
+            return
+
         msg_type = data.get("type")
         
         if msg_type == "message":
@@ -729,33 +771,8 @@ class GopherHole:
         return await self._rpc("x-gopherhole/agents.discover", params)
 
     async def _rpc(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
-        """Make a JSON-RPC call to the A2A endpoint."""
-        if not self._http:
-            self._http = httpx.AsyncClient(
-                base_url=self.api_url,
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "A2A-Version": "1.0",
-                },
-                timeout=30.0,
-            )
-        
-        response = await self._http.post(
-            "/a2a",
-            json={
-                "jsonrpc": "2.0",
-                "method": method,
-                "params": params,
-                "id": 1,
-            },
-        )
-        response.raise_for_status()
-        
-        data = response.json()
-        if "error" in data:
-            raise Exception(data["error"].get("message", "RPC error"))
-        
-        return data["result"]
+        """Make a JSON-RPC call via the configured transport."""
+        return await self._transport.request(method, params)
 
     # ============================================================
     # DISCOVERY METHODS

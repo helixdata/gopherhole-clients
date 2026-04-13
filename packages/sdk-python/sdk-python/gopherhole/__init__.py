@@ -1,6 +1,7 @@
 """GopherHole SDK - Connect AI agents via the A2A protocol."""
 
 from gopherhole.client import GopherHole
+from gopherhole.transport import TransportMode
 from gopherhole.types import (
     Message,
     MessagePayload,
@@ -19,6 +20,7 @@ from gopherhole.types import (
 __version__ = "0.1.1"
 __all__ = [
     "GopherHole",
+    "TransportMode",
     "Message",
     "MessagePayload",
     "MessagePart",
