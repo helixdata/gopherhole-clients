@@ -3,6 +3,10 @@ import { EventEmitter } from 'eventemitter3';
 // Re-export types
 export * from './types';
 
+// Re-export transport types
+export { TransportMode, Transport, HttpTransport, WsTransport, AutoTransport } from './transport.js';
+import { TransportMode, Transport, HttpTransport, WsTransport, AutoTransport } from './transport.js';
+
 // Re-export HTTP client for A2A JSON-RPC over HTTP
 export { A2AClient, TaskStream } from './http.js';
 export type {
@@ -55,6 +59,10 @@ export interface GopherHoleOptions {
   apiKey: string;
   /** Hub URL (defaults to production) */
   hubUrl?: string;
+  /** Transport mode: 'http', 'ws', or 'auto' (default: 'auto') */
+  transport?: TransportMode;
+  /** Fall back to HTTP if WebSocket disconnects (only applies to 'ws' mode, default: true) */
+  wsFallback?: boolean;
   /** Agent card to register on connect */
   agentCard?: AgentCardConfig;
   /** Auto-reconnect on disconnect (default: true) */
@@ -240,6 +248,9 @@ export class GopherHole extends EventEmitter<EventMap> {
   private apiKey: string;
   private hubUrl: string;
   private apiUrl: string;
+  private transportMode: TransportMode;
+  private transport: Transport;
+  private wsTransport: WsTransport | null = null;
   private ws: WebSocket | null = null;
   private autoReconnect: boolean;
   private reconnectDelay: number;
@@ -270,6 +281,29 @@ export class GopherHole extends EventEmitter<EventMap> {
     this.maxReconnectAttempts = options.maxReconnectAttempts ?? 0; // 0 = infinite
     this.requestTimeout = options.requestTimeout ?? 30000;
     this.messageTimeout = options.messageTimeout ?? 30000;
+    this.transportMode = options.transport ?? 'auto';
+
+    // Initialize transport based on mode
+    const wsFallback = options.wsFallback ?? true;
+    switch (this.transportMode) {
+      case 'http':
+        this.transport = new HttpTransport(this.apiUrl, this.apiKey, this.requestTimeout);
+        break;
+      case 'ws':
+        this.wsTransport = new WsTransport(
+          () => this.ws,
+          this.requestTimeout,
+          wsFallback,
+          this.apiUrl,
+          this.apiKey,
+        );
+        this.transport = this.wsTransport;
+        break;
+      case 'auto':
+      default:
+        this.transport = new AutoTransport(this.apiUrl, this.apiKey, this.requestTimeout);
+        break;
+    }
   }
   
   /**
@@ -290,9 +324,17 @@ export class GopherHole extends EventEmitter<EventMap> {
   }
 
   /**
-   * Connect to the GopherHole hub via WebSocket
+   * Connect to the GopherHole hub via WebSocket.
+   * For transport: 'http', this is a no-op.
+   * For transport: 'ws', this is required before sending any messages.
+   * For transport: 'auto', this is optional and enables push events.
    */
   async connect(): Promise<void> {
+    // HTTP transport — no WebSocket needed
+    if (this.transportMode === 'http') {
+      return;
+    }
+
     return new Promise((resolve, reject) => {
       // Browser or Node WebSocket
       const WS = typeof WebSocket !== 'undefined' ? WebSocket : require('ws');
@@ -352,6 +394,9 @@ export class GopherHole extends EventEmitter<EventMap> {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
+    }
+    if (this.wsTransport) {
+      this.wsTransport.cleanup();
     }
     if (this.ws) {
       this.ws.close();
@@ -473,31 +518,41 @@ export class GopherHole extends EventEmitter<EventMap> {
   }
 
   /**
-   * Respond to an incoming task via WebSocket (completes the task)
-   * Use this when you receive a 'message' event and want to send back a response
-   * that completes the original task.
+   * Respond to an incoming task (completes the task).
+   * Uses WebSocket if connected, otherwise falls back to HTTP via task/respond RPC.
    */
   respond(taskId: string, text: string, options?: { status?: 'completed' | 'failed'; message?: string }): void {
-    if (!this.ws || this.ws.readyState !== 1) {
-      throw new Error('WebSocket not connected');
-    }
-
-    const response = {
-      type: 'task_response',
-      taskId,
-      status: { 
-        state: options?.status ?? 'completed',
-        message: options?.message,
-      },
-      artifact: {
-        artifactId: `response-${Date.now()}`,
-        mimeType: 'text/plain',
-        parts: [{ kind: 'text', text }],
-      },
-      lastChunk: true,
+    const status = {
+      state: options?.status ?? 'completed',
+      message: options?.message,
+    };
+    const artifact = {
+      artifactId: `response-${Date.now()}`,
+      mimeType: 'text/plain',
+      parts: [{ kind: 'text' as const, text }],
     };
 
-    this.ws.send(JSON.stringify(response));
+    // Use WebSocket if connected (existing behaviour)
+    if (this.ws?.readyState === 1) {
+      this.ws.send(JSON.stringify({
+        type: 'task_response',
+        taskId,
+        status,
+        artifact,
+        lastChunk: true,
+      }));
+      return;
+    }
+
+    // Fall back to HTTP via task/respond RPC (enables transport: 'http')
+    this.rpc('task/respond', {
+      taskId,
+      status,
+      artifact,
+      lastChunk: true,
+    }).catch((err) => {
+      this.emit('error', new Error(`Failed to respond to task ${taskId}: ${(err as Error).message}`));
+    });
   }
 
   /**
@@ -700,50 +755,21 @@ export class GopherHole extends EventEmitter<EventMap> {
   }
 
   /**
-   * Make a JSON-RPC call to the A2A endpoint
+   * Make a JSON-RPC call via the configured transport
    */
   private async rpc(method: string, params: Record<string, unknown>, timeoutMs?: number): Promise<unknown> {
-    const timeout = timeoutMs ?? this.requestTimeout;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-    try {
-      const response = await fetch(`${this.apiUrl}/a2a`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`,
-        },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          method,
-          params,
-          id: Date.now(),
-        }),
-        signal: controller.signal,
-      });
-
-      const data = await response.json();
-
-      if (data.error) {
-        throw new Error(data.error.message || 'RPC error');
-      }
-
-      return data.result;
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        throw new Error(`Request timeout after ${timeout}ms`);
-      }
-      throw err;
-    } finally {
-      clearTimeout(timeoutId);
-    }
+    return this.transport.request(method, params, timeoutMs);
   }
 
   /**
    * Handle incoming WebSocket messages
    */
   private handleMessage(data: any): void {
+    // Route JSON-RPC responses to the WsTransport (for transport: 'ws' mode)
+    if (this.wsTransport?.handleMessage(data)) {
+      return;
+    }
+
     if (data.type === 'message') {
       const message: Message = {
         from: data.from,
@@ -840,11 +866,27 @@ export class GopherHole extends EventEmitter<EventMap> {
   // ============================================================
 
   /**
-   * Discover public agents with comprehensive search
+   * Discover public agents with comprehensive search.
+   * Uses JSON-RPC via transport for 'ws' mode, HTTP REST for 'http'/'auto'.
    */
   async discover(options?: DiscoverOptions): Promise<DiscoverResult> {
+    // WebSocket transport: route through JSON-RPC
+    if (this.transportMode === 'ws') {
+      return this.rpc('x-gopherhole/agents.discover', {
+        query: options?.query,
+        category: options?.category,
+        tag: options?.tag,
+        owner: options?.owner,
+        verified: options?.verified,
+        sort: options?.sort,
+        limit: options?.limit,
+        offset: options?.offset,
+      }) as Promise<DiscoverResult>;
+    }
+
+    // HTTP/Auto: use REST endpoint (existing behaviour)
     const params = new URLSearchParams();
-    
+
     if (options?.query) params.set('q', options.query);
     if (options?.category) params.set('category', options.category);
     if (options?.tag) params.set('tag', options.tag);
@@ -856,8 +898,7 @@ export class GopherHole extends EventEmitter<EventMap> {
     if (options?.limit) params.set('limit', String(options.limit));
     if (options?.offset) params.set('offset', String(options.offset));
     if (options?.scope) params.set('scope', options.scope);
-    
-    // Include API key to see same-tenant agents (not just public)
+
     const response = await fetch(`${this.apiUrl}/api/discover/agents?${params}`, {
       headers: {
         'Authorization': `Bearer ${this.apiKey}`,
@@ -926,8 +967,22 @@ export class GopherHole extends EventEmitter<EventMap> {
    * Discover agents near a geographic location
    */
   async discoverNearby(options: DiscoverNearbyOptions): Promise<DiscoverNearbyResult> {
+    // WebSocket transport: route through JSON-RPC
+    if (this.transportMode === 'ws') {
+      return this.rpc('x-gopherhole/agents.discover.nearby', {
+        lat: options.lat,
+        lng: options.lng,
+        radius: options.radius,
+        tag: options.tag,
+        category: options.category,
+        limit: options.limit,
+        offset: options.offset,
+      }) as Promise<DiscoverNearbyResult>;
+    }
+
+    // HTTP/Auto: use REST endpoint
     const params = new URLSearchParams();
-    
+
     params.set('lat', String(options.lat));
     params.set('lng', String(options.lng));
     if (options.radius) params.set('radius', String(options.radius));
@@ -935,7 +990,7 @@ export class GopherHole extends EventEmitter<EventMap> {
     if (options.category) params.set('category', options.category);
     if (options.limit) params.set('limit', String(options.limit));
     if (options.offset) params.set('offset', String(options.offset));
-    
+
     const response = await fetch(`${this.apiUrl}/api/discover/agents/nearby?${params}`, {
       headers: {
         'Authorization': `Bearer ${this.apiKey}`,
