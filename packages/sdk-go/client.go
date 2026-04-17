@@ -351,6 +351,9 @@ func (c *Client) Send(ctx context.Context, toAgentID string, payload MessagePayl
 		if opts.HistoryLength > 0 {
 			config["historyLength"] = opts.HistoryLength
 		}
+		if opts.TTL != nil {
+			config["x-ttl"] = *opts.TTL
+		}
 	}
 
 	var task Task

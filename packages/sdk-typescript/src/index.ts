@@ -221,6 +221,14 @@ export interface SendOptions {
   historyLength?: number;
   /** Request timeout in ms (overrides default) */
   timeoutMs?: number;
+  /**
+   * Message time-to-live in seconds (GopherHole extension: x-ttl).
+   * Controls how long a message can stay queued for an offline recipient.
+   * - `0` = fail immediately if recipient is offline (no queue)
+   * - `300` = queue for up to 5 minutes
+   * - `undefined` = use recipient's default (typically 30 days)
+   */
+  ttl?: number;
 }
 
 export interface SendAndWaitOptions extends SendOptions {
@@ -408,13 +416,18 @@ export class GopherHole extends EventEmitter<EventMap> {
    * Send a message to another agent
    */
   async send(toAgentId: string, payload: MessagePayload, options?: SendOptions): Promise<Task> {
-    const { timeoutMs, ...config } = options || {};
+    const { timeoutMs, ttl, ...config } = options || {};
+    const configuration: Record<string, unknown> = {
+      agentId: toAgentId,
+      ...config,
+    };
+    // Map friendly `ttl` to GopherHole extension field `x-ttl`
+    if (ttl !== undefined) {
+      configuration['x-ttl'] = ttl;
+    }
     const response = await this.rpc('message/send', {
       message: payload,
-      configuration: {
-        agentId: toAgentId,
-        ...config,
-      },
+      configuration,
     }, timeoutMs);
 
     return response as Task;

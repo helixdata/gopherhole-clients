@@ -454,6 +454,9 @@ class GopherHole:
             params["configuration"].update(
                 options.model_dump(by_alias=True, exclude_none=True)
             )
+            # Map friendly 'ttl' to GopherHole extension field 'x-ttl'
+            if options.ttl is not None:
+                params["configuration"]["x-ttl"] = options.ttl
         
         result = await self._rpc("SendMessage", params)
         return Task(**result)

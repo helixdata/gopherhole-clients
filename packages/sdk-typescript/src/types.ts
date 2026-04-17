@@ -164,6 +164,10 @@ export const JsonRpcErrorCodes = {
   UnsupportedOperation: -32004,
   ContentTypeNotSupported: -32005,
   InvalidAgentCard: -32006,
+  // Queue errors (GopherHole extension)
+  QueueFull: -32012,
+  SenderThrottled: -32013,
+  TenantQueueFull: -32014,
 } as const;
 
 // ============ Push Notification Types ============

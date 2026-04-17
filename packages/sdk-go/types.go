@@ -181,6 +181,9 @@ type SendOptions struct {
 	ContextID           string `json:"contextId,omitempty"`
 	PushNotificationURL string `json:"pushNotificationUrl,omitempty"`
 	HistoryLength       int    `json:"historyLength,omitempty"`
+	// TTL is the message time-to-live in seconds (GopherHole extension: x-ttl).
+	// 0 = fail immediately if offline (no queue). nil = use recipient default (30 days).
+	TTL *int `json:"-"` // Serialized manually as x-ttl
 }
 
 // DiscoverOptions contains options for discovering agents.

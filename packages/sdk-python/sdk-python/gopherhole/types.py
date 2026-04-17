@@ -197,6 +197,15 @@ class SendOptions(BaseModel):
     context_id: Optional[str] = Field(None, alias="contextId")
     push_notification_url: Optional[str] = Field(None, alias="pushNotificationUrl")
     history_length: Optional[int] = Field(None, alias="historyLength")
+    ttl: Optional[int] = Field(
+        None,
+        description=(
+            "Message time-to-live in seconds (GopherHole extension: x-ttl). "
+            "0 = fail immediately if offline (no queue). "
+            "None = use recipient default (30 days)."
+        ),
+        exclude=True,  # Serialized manually as x-ttl in client.send()
+    )
 
     class Config:
         populate_by_name = True
