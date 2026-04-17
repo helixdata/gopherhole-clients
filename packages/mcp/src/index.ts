@@ -13,7 +13,7 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 
-import { GopherHole, TransportMode } from '@gopherhole/sdk';
+import { GopherHole, TransportMode, getTaskResponseText } from '@gopherhole/sdk';
 import type { MemoryType } from '@gopherhole/sdk';
 import { ALL_TOOLS } from './tools.js';
 
@@ -201,12 +201,42 @@ async function main() {
             };
           }
 
+          // Send the message — returns a task immediately
           const sendOpts = ttl !== undefined ? { ttl } : undefined;
-          const response = await client.askText(agentId, message, sendOpts);
-          
-          return {
-            content: [{ type: 'text', text: response || 'No response from agent' }],
-          };
+          const task = await client.sendText(agentId, message, sendOpts);
+
+          // If the agent is offline and the message was queued, return
+          // immediately instead of hanging for 60s waiting for a reply
+          // that can't come until the agent reconnects.
+          if (task.status?.state === 'submitted') {
+            return {
+              content: [{
+                type: 'text',
+                text: `Message queued — agent "${agentId}" is currently offline. ` +
+                  `The message will be delivered when they reconnect` +
+                  (ttl ? ` (TTL: ${ttl}s).` : ' (TTL: 30 days).') +
+                  `\n\nTask ID: ${task.id}`,
+              }],
+            };
+          }
+
+          // Agent is online — wait for the response as normal
+          try {
+            const completed = await client.waitForTask(task.id, { maxWaitMs: 60_000 });
+            const responseText = getTaskResponseText(completed);
+            return {
+              content: [{ type: 'text', text: responseText || 'No response from agent' }],
+            };
+          } catch (err) {
+            // Timeout or failure — but message was delivered (task was 'working')
+            return {
+              content: [{
+                type: 'text',
+                text: `Message sent to "${agentId}" but response timed out. Task ID: ${task.id}`,
+              }],
+              isError: true,
+            };
+          }
         }
 
         case 'agent_discover_nearby': {
