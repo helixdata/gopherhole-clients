@@ -301,6 +301,54 @@ async function main() {
           }
         }
 
+        case 'agent_inbox': {
+          const limit = (args?.limit as number) || 10;
+          try {
+            // List all recent tasks — includes both sent and received
+            const result = await client.listTasks({ pageSize: limit, sortOrder: 'desc' } as any);
+            const tasks = result.tasks || [];
+
+            if (tasks.length === 0) {
+              return { content: [{ type: 'text', text: 'No tasks found.' }] };
+            }
+
+            const display = tasks.slice(0, limit);
+            const lines = display.map((t: any) => {
+              const state = t.status?.state || 'unknown';
+              const from = t.clientAgentId || 'unknown';
+              const responseText = getTaskResponseText(t);
+              let line = `• **${t.id}** from ${from} — ${state}`;
+              if (t.status?.timestamp) {
+                line += ` (${t.status.timestamp})`;
+              }
+              if (responseText) {
+                line += `\n  Response: ${responseText.slice(0, 200)}`;
+              }
+              if (t.artifacts?.length) {
+                const texts = t.artifacts.flatMap((a: any) =>
+                  (a.parts || []).filter((p: any) => p.kind === 'text').map((p: any) => p.text)
+                );
+                if (texts.length && !responseText) {
+                  line += `\n  Artifacts: ${texts.join(', ').slice(0, 200)}`;
+                }
+              }
+              return line;
+            });
+
+            return {
+              content: [{
+                type: 'text',
+                text: `**${display.length} recent task(s):**\n\n${lines.join('\n\n')}`,
+              }],
+            };
+          } catch (err) {
+            return {
+              content: [{ type: 'text', text: `Error: ${(err as Error).message}` }],
+              isError: true,
+            };
+          }
+        }
+
         case 'agent_tasks_pending': {
           const limit = (args?.limit as number) || 20;
           try {

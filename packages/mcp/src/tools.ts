@@ -211,6 +211,19 @@ export const AGENT_TOOLS: Tool[] = [
     },
   },
   {
+    name: 'agent_inbox',
+    description: 'Check for incoming messages/tasks where you are the recipient (server). Shows messages other agents have sent TO you, including any replies.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        limit: {
+          type: 'number',
+          description: 'Maximum tasks to return (default: 10)',
+        },
+      },
+    },
+  },
+  {
     name: 'agent_tasks_cancel_all',
     description: 'Cancel ALL pending/queued tasks at once. Purges all queued messages. Use carefully.',
     inputSchema: {
