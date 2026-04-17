@@ -304,7 +304,7 @@ async function main() {
         case 'agent_inbox': {
           const limit = (args?.limit as number) || 10;
           try {
-            // List all recent tasks — includes both sent and received
+            // List recent tasks
             const result = await client.listTasks({ pageSize: limit, sortOrder: 'desc' } as any);
             const tasks = result.tasks || [];
 
@@ -312,33 +312,48 @@ async function main() {
               return { content: [{ type: 'text', text: 'No tasks found.' }] };
             }
 
-            const display = tasks.slice(0, limit);
-            const lines = display.map((t: any) => {
-              const state = t.status?.state || 'unknown';
-              const from = t.clientAgentId || 'unknown';
-              const responseText = getTaskResponseText(t);
-              let line = `• **${t.id}** from ${from} — ${state}`;
-              if (t.status?.timestamp) {
-                line += ` (${t.status.timestamp})`;
-              }
-              if (responseText) {
-                line += `\n  Response: ${responseText.slice(0, 200)}`;
-              }
-              if (t.artifacts?.length) {
-                const texts = t.artifacts.flatMap((a: any) =>
-                  (a.parts || []).filter((p: any) => p.kind === 'text').map((p: any) => p.text)
-                );
-                if (texts.length && !responseText) {
-                  line += `\n  Artifacts: ${texts.join(', ').slice(0, 200)}`;
+            // Fetch full task details (listTasks may omit artifacts)
+            const detailed = await Promise.all(
+              tasks.slice(0, limit).map(async (t: any) => {
+                try {
+                  return await client.getTask(t.id);
+                } catch {
+                  return t; // fallback to list data
                 }
-              }
+              })
+            );
+
+            const lines = detailed.map((t: any) => {
+              const state = t.status?.state || 'unknown';
+              const from = t.clientAgentId || t.serverAgentId || 'unknown';
+
+              // Extract the original message (first user message in history)
+              const originalMsg = t.history?.find((m: any) => m.role === 'user');
+              const originalText = originalMsg?.parts
+                ?.filter((p: any) => p.kind === 'text')
+                .map((p: any) => p.text)
+                .join(' ') || '';
+
+              // Extract the response (artifacts from server agent)
+              const responseText = getTaskResponseText(t);
+              // Avoid showing original as response — only show if different
+              const hasRealResponse = responseText && responseText !== originalText;
+
+              let line = `• **${t.id}** — ${state}`;
+              if (t.status?.timestamp) line += ` (${t.status.timestamp})`;
+              line += `\n  From: ${from}`;
+              if (originalText) line += `\n  Message: ${originalText.slice(0, 150)}`;
+              if (hasRealResponse) line += `\n  Reply: ${responseText.slice(0, 200)}`;
+              else if (state === 'submitted') line += `\n  ⏳ Queued`;
+              else if (state === 'working') line += `\n  ⚙️ Delivered, awaiting reply`;
+
               return line;
             });
 
             return {
               content: [{
                 type: 'text',
-                text: `**${display.length} recent task(s):**\n\n${lines.join('\n\n')}`,
+                text: `**${detailed.length} recent task(s):**\n\n${lines.join('\n\n')}`,
               }],
             };
           } catch (err) {
