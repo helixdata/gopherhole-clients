@@ -198,6 +198,33 @@ export const AGENT_TOOLS: Tool[] = [
     },
   },
   {
+    name: 'agent_tasks_pending',
+    description: 'List all your pending/queued tasks (messages waiting for delivery or response).',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        limit: {
+          type: 'number',
+          description: 'Maximum number of tasks to return (default: 20)',
+        },
+      },
+    },
+  },
+  {
+    name: 'agent_tasks_cancel_all',
+    description: 'Cancel ALL pending/queued tasks at once. Purges all queued messages. Use carefully.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        confirm: {
+          type: 'boolean',
+          description: 'Must be true to confirm bulk cancellation',
+        },
+      },
+      required: ['confirm'],
+    },
+  },
+  {
     name: 'agent_discover_nearby',
     description: 'Find agents near a geographic location. Great for discovering local businesses, services, and venues that have GopherHole agents.',
     inputSchema: {

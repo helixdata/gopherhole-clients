@@ -301,6 +301,71 @@ async function main() {
           }
         }
 
+        case 'agent_tasks_pending': {
+          const limit = (args?.limit as number) || 20;
+          try {
+            const result = await client.listTasks({ status: 'submitted', pageSize: limit } as any);
+            const tasks = result.tasks || [];
+            if (tasks.length === 0) {
+              return {
+                content: [{ type: 'text', text: 'No pending tasks.' }],
+              };
+            }
+            const lines = tasks.map((t: any) => {
+              const age = Date.now() - new Date(t.status?.timestamp || 0).getTime();
+              const ageMins = Math.round(age / 60000);
+              return `• **${t.id}** → ${t.serverAgentId || 'unknown'} (queued ${ageMins}m ago)`;
+            });
+            return {
+              content: [{ type: 'text', text: `**${tasks.length} pending task(s):**\n\n${lines.join('\n')}` }],
+            };
+          } catch (err) {
+            return {
+              content: [{ type: 'text', text: `Error: ${(err as Error).message}` }],
+              isError: true,
+            };
+          }
+        }
+
+        case 'agent_tasks_cancel_all': {
+          if (!args?.confirm) {
+            return {
+              content: [{ type: 'text', text: 'Error: set confirm=true to cancel all pending tasks.' }],
+              isError: true,
+            };
+          }
+          try {
+            const result = await client.listTasks({ status: 'submitted', pageSize: 100 } as any);
+            const tasks = result.tasks || [];
+            if (tasks.length === 0) {
+              return {
+                content: [{ type: 'text', text: 'No pending tasks to cancel.' }],
+              };
+            }
+            let canceled = 0;
+            let failed = 0;
+            for (const t of tasks) {
+              try {
+                await client.cancelTask(t.id);
+                canceled++;
+              } catch {
+                failed++;
+              }
+            }
+            return {
+              content: [{
+                type: 'text',
+                text: `Canceled ${canceled} task(s).` + (failed > 0 ? ` ${failed} failed to cancel.` : '') + ' All queued messages purged.',
+              }],
+            };
+          } catch (err) {
+            return {
+              content: [{ type: 'text', text: `Error: ${(err as Error).message}` }],
+              isError: true,
+            };
+          }
+        }
+
         case 'agent_discover_nearby': {
           const lat = args?.lat as number;
           const lng = args?.lng as number;
