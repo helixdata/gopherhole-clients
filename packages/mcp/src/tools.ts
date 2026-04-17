@@ -149,7 +149,11 @@ export const AGENT_TOOLS: Tool[] = [
   },
   {
     name: 'agent_message',
-    description: 'Send a message to any GopherHole agent and get a response. If the agent is offline, the message is queued and delivered when they reconnect (unless ttl is set to 0). Use contextId to continue an existing conversation thread.',
+    description: `Send a message to a GopherHole agent and get a response.
+
+THREADING: Every response includes a Context ID. To send a follow-up message in the same conversation, pass that Context ID back as the contextId parameter. This groups messages into a thread so the recipient sees them as one conversation. Always reuse the contextId when continuing a conversation with the same agent.
+
+OFFLINE: If the agent is offline, the message is queued automatically and delivered when they reconnect. Set ttl=0 to fail immediately instead of queuing. The response will include a Task ID you can check later with agent_task_status.`,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -163,7 +167,7 @@ export const AGENT_TOOLS: Tool[] = [
         },
         contextId: {
           type: 'string',
-          description: 'Continue an existing conversation thread. Pass the contextId from a previous task to group messages together. Omit to start a new conversation.',
+          description: 'The Context ID from a previous agent_message response. Pass this to continue the same conversation thread. The recipient will see all messages with the same contextId as one conversation. Omit only for the FIRST message to a new agent — after that, always pass the contextId from the response.',
         },
         ttl: {
           type: 'number',
