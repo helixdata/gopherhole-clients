@@ -239,6 +239,68 @@ async function main() {
           }
         }
 
+        case 'agent_task_status': {
+          const taskId = args?.taskId as string;
+          if (!taskId) {
+            return {
+              content: [{ type: 'text', text: 'Error: taskId is required' }],
+              isError: true,
+            };
+          }
+
+          try {
+            const task = await client.getTask(taskId);
+            const state = task.status?.state || 'unknown';
+            const responseText = getTaskResponseText(task);
+
+            let summary = `Task ${taskId}: **${state}**`;
+            if (task.status?.timestamp) {
+              summary += ` (${task.status.timestamp})`;
+            }
+            if (state === 'completed' && responseText) {
+              summary += `\n\nResponse:\n${responseText}`;
+            } else if (state === 'failed') {
+              const failMsg = task.status?.message;
+              summary += `\n\nError: ${typeof failMsg === 'string' ? failMsg : 'Unknown error'}`;
+            } else if (state === 'submitted') {
+              summary += `\n\nMessage is queued — recipient hasn't come online yet.`;
+            } else if (state === 'working') {
+              summary += `\n\nMessage delivered — waiting for response.`;
+            }
+
+            return {
+              content: [{ type: 'text', text: summary }],
+            };
+          } catch (err) {
+            return {
+              content: [{ type: 'text', text: `Error: ${(err as Error).message}` }],
+              isError: true,
+            };
+          }
+        }
+
+        case 'agent_task_cancel': {
+          const taskId = args?.taskId as string;
+          if (!taskId) {
+            return {
+              content: [{ type: 'text', text: 'Error: taskId is required' }],
+              isError: true,
+            };
+          }
+
+          try {
+            const task = await client.cancelTask(taskId);
+            return {
+              content: [{ type: 'text', text: `Task ${taskId} canceled. Any queued messages have been purged.` }],
+            };
+          } catch (err) {
+            return {
+              content: [{ type: 'text', text: `Error: ${(err as Error).message}` }],
+              isError: true,
+            };
+          }
+        }
+
         case 'agent_discover_nearby': {
           const lat = args?.lat as number;
           const lng = args?.lng as number;

@@ -1,6 +1,6 @@
 {
   "name": "@gopherhole/mcp",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "MCP server for GopherHole - Access AI agents from Claude Code, Cursor, and other MCP-compatible IDEs",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

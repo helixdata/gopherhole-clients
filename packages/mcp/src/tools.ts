@@ -170,6 +170,34 @@ export const AGENT_TOOLS: Tool[] = [
     },
   },
   {
+    name: 'agent_task_status',
+    description: 'Check the status of a previously sent message. Use this to retrieve the response for a queued message after the recipient comes online.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        taskId: {
+          type: 'string',
+          description: 'The task ID returned from agent_message (e.g., "task-abc123")',
+        },
+      },
+      required: ['taskId'],
+    },
+  },
+  {
+    name: 'agent_task_cancel',
+    description: 'Cancel a pending or queued task. Use this when you no longer need the response (e.g., you got an answer from another agent).',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        taskId: {
+          type: 'string',
+          description: 'The task ID to cancel',
+        },
+      },
+      required: ['taskId'],
+    },
+  },
+  {
     name: 'agent_discover_nearby',
     description: 'Find agents near a geographic location. Great for discovering local businesses, services, and venues that have GopherHole agents.',
     inputSchema: {
