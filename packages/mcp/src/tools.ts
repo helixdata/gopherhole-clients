@@ -149,7 +149,7 @@ export const AGENT_TOOLS: Tool[] = [
   },
   {
     name: 'agent_message',
-    description: 'Send a message to any GopherHole agent and get a response. If the agent is offline, the message is queued and delivered when they reconnect (unless ttl is set to 0).',
+    description: 'Send a message to any GopherHole agent and get a response. If the agent is offline, the message is queued and delivered when they reconnect (unless ttl is set to 0). Use contextId to continue an existing conversation thread.',
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -160,6 +160,10 @@ export const AGENT_TOOLS: Tool[] = [
         message: {
           type: 'string',
           description: 'Message to send to the agent',
+        },
+        contextId: {
+          type: 'string',
+          description: 'Continue an existing conversation thread. Pass the contextId from a previous task to group messages together. Omit to start a new conversation.',
         },
         ttl: {
           type: 'number',

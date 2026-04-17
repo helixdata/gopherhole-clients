@@ -193,6 +193,7 @@ async function main() {
           const agentId = args?.agentId as string;
           const message = args?.message as string;
           const ttl = args?.ttl as number | undefined;
+          const contextId = args?.contextId as string | undefined;
           
           if (!agentId || !message) {
             return {
@@ -201,13 +202,18 @@ async function main() {
             };
           }
 
+          // Build send options
+          const sendOpts: Record<string, unknown> = {};
+          if (ttl !== undefined) sendOpts.ttl = ttl;
+          if (contextId) sendOpts.contextId = contextId;
+          const opts = Object.keys(sendOpts).length > 0 ? sendOpts : undefined;
+
           // Send the message — returns a task immediately
-          const sendOpts = ttl !== undefined ? { ttl } : undefined;
-          const task = await client.sendText(agentId, message, sendOpts);
+          const task = await client.sendText(agentId, message, opts as any);
+          const taskContextId = (task as any).contextId || contextId || '';
 
           // If the agent is offline and the message was queued, return
           // immediately instead of hanging for 60s waiting for a reply
-          // that can't come until the agent reconnects.
           if (task.status?.state === 'submitted') {
             return {
               content: [{
@@ -215,7 +221,8 @@ async function main() {
                 text: `Message queued — agent "${agentId}" is currently offline. ` +
                   `The message will be delivered when they reconnect` +
                   (ttl ? ` (TTL: ${ttl}s).` : ' (TTL: 30 days).') +
-                  `\n\nTask ID: ${task.id}`,
+                  `\n\nTask ID: ${task.id}` +
+                  (taskContextId ? `\nContext ID: ${taskContextId}` : ''),
               }],
             };
           }
@@ -224,15 +231,16 @@ async function main() {
           try {
             const completed = await client.waitForTask(task.id, { maxWaitMs: 60_000 });
             const responseText = getTaskResponseText(completed);
+            const ctxInfo = taskContextId ? `\n\nContext ID: ${taskContextId} (use this to continue the conversation)` : '';
             return {
-              content: [{ type: 'text', text: responseText || 'No response from agent' }],
+              content: [{ type: 'text', text: (responseText || 'No response from agent') + ctxInfo }],
             };
           } catch (err) {
-            // Timeout or failure — but message was delivered (task was 'working')
             return {
               content: [{
                 type: 'text',
-                text: `Message sent to "${agentId}" but response timed out. Task ID: ${task.id}`,
+                text: `Message sent to "${agentId}" but response timed out.\n\nTask ID: ${task.id}` +
+                  (taskContextId ? `\nContext ID: ${taskContextId}` : ''),
               }],
               isError: true,
             };
