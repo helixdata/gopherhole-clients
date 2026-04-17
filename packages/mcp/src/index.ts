@@ -192,6 +192,7 @@ async function main() {
         case 'agent_message': {
           const agentId = args?.agentId as string;
           const message = args?.message as string;
+          const ttl = args?.ttl as number | undefined;
           
           if (!agentId || !message) {
             return {
@@ -200,7 +201,8 @@ async function main() {
             };
           }
 
-          const response = await client.askText(agentId, message);
+          const sendOpts = ttl !== undefined ? { ttl } : undefined;
+          const response = await client.askText(agentId, message, sendOpts);
           
           return {
             content: [{ type: 'text', text: response || 'No response from agent' }],

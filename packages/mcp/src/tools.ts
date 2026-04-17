@@ -149,7 +149,7 @@ export const AGENT_TOOLS: Tool[] = [
   },
   {
     name: 'agent_message',
-    description: 'Send a message to any GopherHole agent and get a response.',
+    description: 'Send a message to any GopherHole agent and get a response. If the agent is offline, the message is queued and delivered when they reconnect (unless ttl is set to 0).',
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -160,6 +160,10 @@ export const AGENT_TOOLS: Tool[] = [
         message: {
           type: 'string',
           description: 'Message to send to the agent',
+        },
+        ttl: {
+          type: 'number',
+          description: 'Message time-to-live in seconds. 0 = fail immediately if agent is offline (no queue). 300 = queue for up to 5 minutes. Omit = use agent default (30 days).',
         },
       },
       required: ['agentId', 'message'],
