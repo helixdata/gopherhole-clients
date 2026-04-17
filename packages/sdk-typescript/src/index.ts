@@ -503,6 +503,8 @@ export class GopherHole extends EventEmitter<EventMap> {
    */
   async listTasks(options?: {
     contextId?: string;
+    /** Filter by task state (e.g., 'submitted' for queued tasks) */
+    status?: string;
     pageSize?: number;
     pageToken?: string;
   }): Promise<{ tasks: Task[]; nextPageToken?: string; totalSize: number }> {

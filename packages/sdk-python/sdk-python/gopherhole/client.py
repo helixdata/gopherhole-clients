@@ -658,6 +658,7 @@ class GopherHole:
     async def list_tasks(
         self,
         context_id: Optional[str] = None,
+        status: Optional[str] = None,
         page_size: Optional[int] = None,
         page_token: Optional[str] = None,
     ) -> TaskListResult:
@@ -675,6 +676,8 @@ class GopherHole:
         params: dict[str, Any] = {}
         if context_id:
             params["contextId"] = context_id
+        if status:
+            params["status"] = status
         if page_size:
             params["pageSize"] = page_size
         if page_token:

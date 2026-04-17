@@ -478,6 +478,46 @@ func (c *Client) GetTask(ctx context.Context, taskID string, historyLength int) 
 	return &task, nil
 }
 
+// ListTasksOptions configures the ListTasks call.
+type ListTasksOptions struct {
+	ContextID string
+	Status    string // Filter by state, e.g. "submitted" for queued tasks
+	PageSize  int
+	PageToken string
+}
+
+// ListTasksResult contains the paginated task list.
+type ListTasksResult struct {
+	Tasks         []Task `json:"tasks"`
+	NextPageToken string `json:"nextPageToken,omitempty"`
+	TotalSize     int    `json:"totalSize"`
+}
+
+// ListTasks returns tasks, optionally filtered by context or status.
+func (c *Client) ListTasks(ctx context.Context, opts *ListTasksOptions) (*ListTasksResult, error) {
+	params := map[string]interface{}{}
+	if opts != nil {
+		if opts.ContextID != "" {
+			params["contextId"] = opts.ContextID
+		}
+		if opts.Status != "" {
+			params["status"] = opts.Status
+		}
+		if opts.PageSize > 0 {
+			params["pageSize"] = opts.PageSize
+		}
+		if opts.PageToken != "" {
+			params["pageToken"] = opts.PageToken
+		}
+	}
+
+	var result ListTasksResult
+	if err := c.rpc(ctx, "ListTasks", params, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // CancelTask cancels a task.
 func (c *Client) CancelTask(ctx context.Context, taskID string) (*Task, error) {
 	params := map[string]interface{}{
