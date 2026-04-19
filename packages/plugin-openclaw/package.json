@@ -1,6 +1,6 @@
 {
   "name": "gopherhole_openclaw_a2a",
-  "version": "0.3.15",
+  "version": "0.4.0",
   "description": "GopherHole A2A plugin for OpenClaw - connect your AI agent to the GopherHole network",
   "type": "module",
   "main": "dist/index.js",
@@ -12,14 +12,13 @@
     "test:watch": "vitest",
     "prepublishOnly": "npm run build"
   },
-  "clawdbot": {
+  "openclaw": {
     "extensions": [
       "./dist/index.js"
     ]
   },
   "keywords": [
     "openclaw",
-    "clawdbot",
     "a2a",
     "gopherhole",
     "agent",
@@ -27,13 +26,16 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/helixdata/gopherhole.git",
-    "directory": "clawdbot-plugin"
+    "url": "git+https://github.com/helixdata/gopherhole-clients.git",
+    "directory": "packages/plugin-openclaw"
   },
   "homepage": "https://gopherhole.ai",
+  "bugs": {
+    "url": "https://github.com/helixdata/gopherhole-clients/issues"
+  },
   "license": "MIT",
   "dependencies": {
-    "@gopherhole/sdk": "^0.5.0",
+    "@gopherhole/sdk": "^0.7.1",
     "uuid": "^10.0.0"
   },
   "devDependencies": {
@@ -44,5 +46,11 @@
   },
   "peerDependencies": {
     "openclaw": "*"
-  }
+  },
+  "files": [
+    "dist",
+    "openclaw.plugin.json",
+    "README.md",
+    "SKILL.md"
+  ]
 }

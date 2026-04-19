@@ -1,6 +1,6 @@
 /**
  * A2A Channel Plugin Entry Point
- * Enables Clawdbot to communicate with other AI agents via A2A protocol
+ * Enables OpenClaw to communicate with other AI agents via A2A protocol
  */
 
 import { a2aPlugin, setA2ARuntime, getA2AConnectionManager } from './src/channel.js';
@@ -8,7 +8,7 @@ import { readFileSync } from 'fs';
 import { basename, extname } from 'path';
 
 // Minimal plugin interface
-interface ClawdbotPluginApi {
+interface OpenClawPluginApi {
   runtime: unknown;
   registerChannel(opts: { plugin: unknown }): void;
   registerTool?(opts: {
@@ -24,7 +24,7 @@ const plugin = {
   name: 'A2A Protocol',
   description: 'Agent-to-Agent communication channel',
   configSchema: { type: 'object', additionalProperties: false, properties: {} },
-  register(api: ClawdbotPluginApi) {
+  register(api: OpenClawPluginApi) {
     setA2ARuntime(api.runtime);
     api.registerChannel({ plugin: a2aPlugin });
 
