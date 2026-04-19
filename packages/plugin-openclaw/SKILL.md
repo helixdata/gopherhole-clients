@@ -16,7 +16,7 @@ Add to your Clawdbot config:
 channels:
   a2a:
     enabled: true
-    agentId: nova              # Our identifier (default: clawdbot)
+    agentId: nova              # Our identifier (default: openclaw)
     agentName: Nova            # Display name
     bridgeUrl: ws://localhost:8080/a2a   # A2A bridge/hub (optional)
     agents:                    # Direct agent connections (optional)

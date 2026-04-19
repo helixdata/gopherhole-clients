@@ -33,13 +33,22 @@ let connected = false;
 let handshakeComplete = false;
 
 function getGatewayToken(): string | null {
-  try {
-    const configPath = join(homedir(), '.clawdbot', 'clawdbot.json');
-    const config = JSON.parse(readFileSync(configPath, 'utf8'));
-    return config?.gateway?.auth?.token ?? null;
-  } catch {
-    return null;
+  // Try the current OpenClaw config location first, then the legacy
+  // Clawdbot path as a fallback for users still on older installs.
+  const candidates = [
+    join(homedir(), '.openclaw', 'openclaw.json'),
+    join(homedir(), '.clawdbot', 'clawdbot.json'),
+  ];
+  for (const configPath of candidates) {
+    try {
+      const config = JSON.parse(readFileSync(configPath, 'utf8'));
+      const token = config?.gateway?.auth?.token;
+      if (token) return token;
+    } catch {
+      // file missing or unparseable — try next
+    }
   }
+  return null;
 }
 
 export async function connectToGateway(port = 18789): Promise<void> {

@@ -7,7 +7,7 @@ import { appendFileSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 
-const LOG_DIR = join(homedir(), '.clawdbot', 'logs');
+const LOG_DIR = join(homedir(), '.openclaw', 'logs');
 const A2A_LOG_FILE = join(LOG_DIR, 'a2a.log');
 
 // Ensure log directory exists
