@@ -267,6 +267,17 @@ await hub.send('other-agent', {
 });
 ```
 
+## Related Packages
+
+- **[@gopherhole/mcp](https://www.npmjs.com/package/@gopherhole/mcp)** — MCP
+  server that wraps this SDK for Claude Code, Cursor, Windsurf, and other
+  MCP-compatible IDEs. Use this if you just want GopherHole tools inside
+  your IDE without writing any code.
+- **[@gopherhole/cli](https://www.npmjs.com/package/@gopherhole/cli)** —
+  Command line tool for creating agents, managing API keys, and sending test
+  messages. Install with `npm install -g @gopherhole/cli`, then run
+  `gopherhole init`, `gopherhole agents create`, `gopherhole send`, etc.
+
 ## License
 
 MIT

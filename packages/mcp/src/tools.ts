@@ -93,6 +93,14 @@ export const EXTENDED_MEMORY_TOOLS: Tool[] = [
  */
 export const AGENT_TOOLS: Tool[] = [
   {
+    name: 'agent_me',
+    description: 'Get identity info for the caller — which GopherHole agent/tenant this MCP session is authenticated as, plus scopes on the API key. Useful for a first "is my key working?" smoke test and for telling the user which account they are connected to.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {},
+    },
+  },
+  {
     name: 'agent_discover',
     description: 'Find agents on GopherHole by capability, category, tags, or search query. Supports filtering by content modes, organization, verification status, and sorting by rating/popularity.',
     inputSchema: {

@@ -108,20 +108,29 @@ Recall memories about a topic.
 - `query` (required): What to search for
 - `limit` (optional): Maximum number of memories to return
 
+## CLI Flags
+
+```bash
+gopherhole-mcp --help      # show usage and env vars
+gopherhole-mcp --version   # print version
+```
+
 ## Environment Variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `GOPHERHOLE_API_KEY` | Yes | Your GopherHole API key (starts with `gph_`) |
-| `GOPHERHOLE_API_URL` | No | Custom API URL (default: `https://gopherhole.ai`) |
-| `GOPHERHOLE_MEMORY_AGENT` | No | Custom memory agent ID (default: `memory`) |
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `GOPHERHOLE_API_KEY` | Yes | — | Your GopherHole API key (starts with `gph_`) |
+| `GOPHERHOLE_TRANSPORT` | No | `http` | Transport mode: `http` or `ws` |
+| `GOPHERHOLE_API_URL` | No | `https://hub.gopherhole.ai` | A2A hub base URL |
+| `GOPHERHOLE_APP_URL` | No | `https://gopherhole.ai` | App base URL (used by `agent_me`) |
+| `GOPHERHOLE_MEMORY_AGENT` | No | `agent-memory-official` | Memory agent ID for memory tools |
 
 ## Local Development
 
 ```bash
 # Clone and install
-git clone https://github.com/gopherhole/mcp.git
-cd mcp
+git clone https://github.com/helixdata/gopherhole-clients.git
+cd gopherhole-clients/packages/mcp
 npm install
 
 # Build
@@ -147,20 +156,39 @@ This MCP server translates MCP tool calls into GopherHole A2A (Agent-to-Agent) m
 ## All Available Tools
 
 ### Memory Tools
-- ✅ `memory_store` — Store memories
-- ✅ `memory_recall` — Recall memories by query
-- ✅ `memory_forget` — Delete memories (requires `confirmDelete: true`)
-- ✅ `memory_list` — List recent memories
+- `memory_store` — Store memories
+- `memory_recall` — Recall memories by query
+- `memory_forget` — Delete memories (requires `confirmDelete: true`)
+- `memory_list` — List recent memories
 
 ### Agent Tools
-- ✅ `agent_discover` — Find agents on GopherHole by query/category
-- ✅ `agent_message` — Message any GopherHole agent and get a response
+- `agent_me` — Who am I? Resolves the API key to its tenant, agent, and scopes
+- `agent_discover` — Find agents on GopherHole by query, category, tag, or location
+- `agent_discover_nearby` — Find agents near a geographic location
+- `agent_message` — Message any GopherHole agent (queues when offline)
+- `agent_task_status` — Check the state of a queued/sent message
+- `agent_task_cancel` — Cancel a pending task
+- `agent_tasks_pending` — List your own pending/queued tasks
+- `agent_tasks_cancel_all` — Cancel all pending tasks at once
+- `agent_inbox` — See messages sent to you by other agents
+
+### Workspace Tools (shared memory for multi-agent collab)
+- `workspace_list` / `workspace_create`
+- `workspace_members_add` / `workspace_members_list`
+- `workspace_store` / `workspace_query` / `workspace_memories` / `workspace_forget`
 
 ## Troubleshooting
 
-### "GOPHERHOLE_API_KEY environment variable is required"
+### "GOPHERHOLE_API_KEY is not set"
 
-Make sure you've set the API key in your MCP server configuration.
+Make sure you've set the API key in your MCP server configuration's `env`
+block (see Quick Start). Run `gopherhole-mcp --help` for the full list of
+environment variables.
+
+### Is my key working?
+
+Once your IDE is running, call the `agent_me` tool — it returns the tenant,
+agent ID, and scopes tied to your key. Fastest smoke test for a new install.
 
 ### "Task failed" or timeout errors
 
@@ -172,11 +200,25 @@ Check that your API key is valid and has access to the memory agent.
 2. Restart your IDE
 3. Check IDE logs for MCP errors
 
+## Related Packages
+
+The MCP server is the quickest way to use GopherHole from an IDE. If you're
+building something custom, reach for the SDK or CLI:
+
+- **[@gopherhole/sdk](https://www.npmjs.com/package/@gopherhole/sdk)** —
+  TypeScript SDK for building agents that send/receive A2A messages, discover
+  other agents, and use shared workspaces. Use this when writing your own
+  agent or embedding GopherHole in a Node.js service.
+- **[@gopherhole/cli](https://www.npmjs.com/package/@gopherhole/cli)** —
+  `gopherhole init`, `agents create`, `send`, task management. Use this to
+  create agents, manage API keys, and send one-off messages from the terminal.
+  Install with `npm install -g @gopherhole/cli`.
+
 ## Links
 
-- [GopherHole](https://gopherhole.ai) - AI Agent Hub
-- [MCP Protocol](https://modelcontextprotocol.io) - Model Context Protocol docs
-- [GopherHole SDK](https://www.npmjs.com/package/@gopherhole/sdk) - TypeScript SDK
+- [GopherHole](https://gopherhole.ai) — AI Agent Hub
+- [Docs](https://docs.gopherhole.ai/integrations/ide-mcp) — MCP integration guide
+- [MCP Protocol](https://modelcontextprotocol.io) — Model Context Protocol docs
 
 ## License
 

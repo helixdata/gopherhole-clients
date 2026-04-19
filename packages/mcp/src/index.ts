@@ -17,8 +17,43 @@ import { GopherHole, TransportMode, getTaskResponseText } from '@gopherhole/sdk'
 import type { MemoryType } from '@gopherhole/sdk';
 import { ALL_TOOLS } from './tools.js';
 
+const VERSION = '0.7.2';
+
 // Default memory agent ID (can be overridden via env)
 const MEMORY_AGENT_ID = process.env.GOPHERHOLE_MEMORY_AGENT || 'agent-memory-official';
+
+// Default app URL for hub-level REST endpoints (whoami, etc.)
+const APP_URL = process.env.GOPHERHOLE_APP_URL || 'https://gopherhole.ai';
+
+const HELP_TEXT = `gopherhole-mcp v${VERSION}
+
+MCP server for GopherHole — exposes GopherHole agents as tools for Claude
+Code, Cursor, and other MCP-compatible IDEs.
+
+USAGE
+  gopherhole-mcp [--help] [--version]
+
+ENVIRONMENT
+  GOPHERHOLE_API_KEY       (required) API key from https://gopherhole.ai
+  GOPHERHOLE_TRANSPORT     http | ws            (default: http)
+  GOPHERHOLE_API_URL       Hub base URL         (default: https://hub.gopherhole.ai)
+  GOPHERHOLE_APP_URL       App base URL         (default: https://gopherhole.ai)
+  GOPHERHOLE_MEMORY_AGENT  Default memory agent (default: agent-memory-official)
+
+EXAMPLE (Claude Desktop / Code mcp.json)
+  {
+    "mcpServers": {
+      "gopherhole": {
+        "command": "npx",
+        "args": ["-y", "@gopherhole/mcp"],
+        "env": { "GOPHERHOLE_API_KEY": "gph_..." }
+      }
+    }
+  }
+
+DOCS
+  https://docs.gopherhole.ai/integrations/ide-mcp
+`;
 
 /**
  * Format tags for the memory store message
@@ -46,11 +81,32 @@ function formatRecallMessage(query: string, limit?: number): string {
  * Main entry point
  */
 async function main() {
+  // CLI flags (stdout is reserved for MCP protocol only when running as a
+  // server — flags exit before we connect the transport, so stdout is safe)
+  const argv = process.argv.slice(2);
+  if (argv.includes('--help') || argv.includes('-h')) {
+    process.stdout.write(HELP_TEXT);
+    process.exit(0);
+  }
+  if (argv.includes('--version') || argv.includes('-v')) {
+    process.stdout.write(`${VERSION}\n`);
+    process.exit(0);
+  }
+
   // Initialize GopherHole client
   const apiKey = process.env.GOPHERHOLE_API_KEY;
   if (!apiKey) {
-    console.error('Error: GOPHERHOLE_API_KEY environment variable is required');
-    console.error('Get your API key at https://gopherhole.ai');
+    console.error('');
+    console.error('  GopherHole MCP: GOPHERHOLE_API_KEY is not set.');
+    console.error('');
+    console.error('  Get your API key at https://gopherhole.ai');
+    console.error('  Then set it in your MCP client config, e.g.:');
+    console.error('');
+    console.error('    "env": { "GOPHERHOLE_API_KEY": "gph_..." }');
+    console.error('');
+    console.error('  Docs: https://docs.gopherhole.ai/integrations/ide-mcp');
+    console.error('  Run `gopherhole-mcp --help` for all env vars.');
+    console.error('');
     process.exit(1);
   }
 
@@ -69,7 +125,7 @@ async function main() {
   const server = new Server(
     {
       name: 'gopherhole',
-      version: '0.1.0',
+      version: VERSION,
     },
     {
       capabilities: {
@@ -187,6 +243,49 @@ async function main() {
           return {
             content: [{ type: 'text', text: `Found ${result.count} agents:\n\n${agentList}` }],
           };
+        }
+
+        case 'agent_me': {
+          // Call /api/auth/whoami on the app host to resolve the calling
+          // API key to its identity (tenant + agent + scopes).
+          try {
+            const res = await fetch(`${APP_URL}/api/auth/whoami`, {
+              headers: { Authorization: `Bearer ${apiKey}` },
+            });
+            if (!res.ok) {
+              return {
+                content: [{
+                  type: 'text',
+                  text: `whoami failed: HTTP ${res.status} ${res.statusText}`,
+                }],
+                isError: true,
+              };
+            }
+            const data = (await res.json()) as any;
+            if (data?.type === 'api_key') {
+              const t = data.tenant || {};
+              const k = data.apiKey || {};
+              const scopes = Array.isArray(k.scopes) ? k.scopes.join(', ') : 'none';
+              const lines = [
+                `**Agent:** ${k.agentId || '(none)'}`,
+                `**Tenant:** ${t.name || t.id || '(unknown)'}${t.slug ? ` (${t.slug})` : ''}${t.plan ? ` — ${t.plan}` : ''}`,
+                `**API Key:** ${k.name || k.prefix || k.id} (${k.prefix || ''})`,
+                `**Scopes:** ${scopes}`,
+              ];
+              if (k.lastUsedAt) lines.push(`**Last used:** ${new Date(k.lastUsedAt).toISOString()}`);
+              if (k.expiresAt) lines.push(`**Expires:** ${new Date(k.expiresAt).toISOString()}`);
+              return { content: [{ type: 'text', text: lines.join('\n') }] };
+            }
+            // Unexpected for MCP (no session cookie) but handle gracefully
+            return {
+              content: [{ type: 'text', text: `Identity:\n\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\`` }],
+            };
+          } catch (err) {
+            return {
+              content: [{ type: 'text', text: `Error: ${(err as Error).message}` }],
+              isError: true,
+            };
+          }
         }
 
         case 'agent_message': {

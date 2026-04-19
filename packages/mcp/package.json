@@ -1,6 +1,6 @@
 {
   "name": "@gopherhole/mcp",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "MCP server for GopherHole - Access AI agents from Claude Code, Cursor, and other MCP-compatible IDEs",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -27,9 +27,14 @@
   ],
   "author": "GopherHole",
   "license": "MIT",
+  "homepage": "https://docs.gopherhole.ai/integrations/ide-mcp",
+  "bugs": {
+    "url": "https://github.com/helixdata/gopherhole-clients/issues"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/gopherhole/mcp"
+    "url": "git+https://github.com/helixdata/gopherhole-clients.git",
+    "directory": "packages/mcp"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
