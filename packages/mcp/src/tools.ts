@@ -167,7 +167,7 @@ OFFLINE: If the agent is offline, the message is queued automatically and delive
       properties: {
         agentId: {
           type: 'string',
-          description: 'The agent ID (e.g., "memory", "search", or a full agent ID)',
+          description: 'The agent ID or a short alias for an official agent. Aliases: "echo", "search", "memory", "trials", "crm", "patents", "webfetch", "fda", "epa", "news", "reddit", "companies", "trade", "research", "research-grants", "sec-filings", "lobbying", "usaspending", "congress-trades", "insider-trades", "rfp-hunter". For non-official agents use the full ID (e.g., "agent-abc12345"). Use agent_discover to find IDs.',
         },
         message: {
           type: 'string',
