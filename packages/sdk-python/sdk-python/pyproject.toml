@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "gopherhole"
-version = "0.6.0"
+version = "0.6.1"
 description = "GopherHole SDK - Connect AI agents via the A2A protocol"
 readme = "README.md"
 license = "MIT"

@@ -103,6 +103,14 @@ func WithAgentCard(card *AgentCard) ClientOption {
 	}
 }
 
+// WithWelcomeTimeout bounds how long Connect() waits for the hub's welcome
+// message (which carries the agent ID) before giving up. Default: 10 seconds.
+func WithWelcomeTimeout(d time.Duration) ClientOption {
+	return func(c *Client) {
+		c.welcomeTimeout = d
+	}
+}
+
 // MessageHandler is called when a message is received.
 type MessageHandler func(Message)
 
@@ -144,6 +152,17 @@ type Client struct {
 	agentID           string
 	reconnectAttempts int
 
+	// welcomeCh is created per Connect() call and closed once the
+	// hub's welcome message (carrying agentID) has been processed — or
+	// when readLoop exits without a welcome, so Connect() unblocks either
+	// way. welcomeMu protects re-init / close races.
+	welcomeCh chan struct{}
+	welcomeMu sync.Mutex
+
+	// welcomeTimeout bounds how long Connect() will wait for the welcome
+	// message before giving up and tearing down the connection.
+	welcomeTimeout time.Duration
+
 	// Event handlers
 	onMessage      MessageHandler
 	onSystem       SystemHandler
@@ -174,6 +193,7 @@ func New(apiKey string, opts ...ClientOption) *Client {
 		transportMode:        TransportAuto,
 		wsFallback:           true,
 		done:                 make(chan struct{}),
+		welcomeTimeout:       10 * time.Second,
 	}
 
 	for _, opt := range opts {
@@ -279,6 +299,12 @@ func (c *Client) Connect(ctx context.Context) error {
 		return fmt.Errorf("websocket dial: %w", err)
 	}
 
+	// Reset welcome signal channel for this connect attempt
+	c.welcomeMu.Lock()
+	c.welcomeCh = make(chan struct{})
+	welcomeCh := c.welcomeCh
+	c.welcomeMu.Unlock()
+
 	c.connMu.Lock()
 	c.conn = conn
 	c.connMu.Unlock()
@@ -291,11 +317,49 @@ func (c *Client) Connect(ctx context.Context) error {
 	// Start ping loop
 	go c.pingLoop()
 
+	// Block until the hub sends the welcome message so that AgentID() is
+	// populated by the time Connect() returns. readLoop signals the same
+	// channel on early exit, so we never hang indefinitely.
+	welcomeTimeout := c.welcomeTimeout
+	if welcomeTimeout <= 0 {
+		welcomeTimeout = 10 * time.Second
+	}
+	select {
+	case <-welcomeCh:
+		// welcome received (or readLoop exited) — check which
+		if c.agentID == "" {
+			c.Disconnect()
+			return fmt.Errorf("connection closed before welcome received")
+		}
+	case <-time.After(welcomeTimeout):
+		c.Disconnect()
+		return fmt.Errorf("timed out waiting for welcome from hub after %s", welcomeTimeout)
+	case <-ctx.Done():
+		c.Disconnect()
+		return ctx.Err()
+	}
+
 	if c.onConnect != nil {
 		c.onConnect()
 	}
 
 	return nil
+}
+
+// signalWelcome closes the current welcome channel (idempotent). Called
+// both from the welcome handler and from readLoop's defer.
+func (c *Client) signalWelcome() {
+	c.welcomeMu.Lock()
+	defer c.welcomeMu.Unlock()
+	if c.welcomeCh == nil {
+		return
+	}
+	select {
+	case <-c.welcomeCh:
+		// already closed
+	default:
+		close(c.welcomeCh)
+	}
 }
 
 // Disconnect closes the WebSocket connection.
@@ -1011,6 +1075,8 @@ func (c *Client) httpPost(ctx context.Context, url string, body interface{}, res
 func (c *Client) readLoop() {
 	defer func() {
 		c.connected.Store(false)
+		// Unblock any Connect() still waiting on the welcome signal.
+		c.signalWelcome()
 		if c.onDisconnect != nil {
 			c.onDisconnect("connection closed")
 		}
@@ -1094,6 +1160,8 @@ func (c *Client) handleWSMessage(msg wsMessage) {
 				_ = conn.WriteJSON(cardMsg)
 			}
 		}
+		// Release Connect() now that agent identity is known.
+		c.signalWelcome()
 	case "card_updated":
 		// Agent card was successfully updated
 	case "pong":

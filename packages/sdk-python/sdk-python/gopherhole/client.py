@@ -140,6 +140,7 @@ class GopherHole:
 
         # Event handlers
         self._on_connect: Optional[Callable[[], Any]] = None
+        self._on_ready: Optional[Callable[[str], Any]] = None
         self._on_disconnect: Optional[Callable[[str], Any]] = None
         self._on_reconnecting: Optional[Callable[[int, float], Any]] = None
         self._on_message: Optional[Callable[[Message], Any]] = None
@@ -164,8 +165,17 @@ class GopherHole:
 
     # Event decorators
     def on_connect(self, func: Callable[[], Any]) -> Callable[[], Any]:
-        """Register a handler for connection events."""
+        """Register a handler for connection events (fires after the welcome
+        message has been received and ``agent_id`` is populated)."""
         self._on_connect = func
+        return func
+
+    def on_ready(self, func: Callable[[str], Any]) -> Callable[[str], Any]:
+        """Register a handler that fires once the hub has sent the welcome
+        message and ``agent_id`` is known. The handler receives the agent ID
+        as its sole argument. Cross-SDK parity with @gopherhole/sdk's
+        ``ready`` event."""
+        self._on_ready = func
         return func
 
     def on_disconnect(self, func: Callable[[str], Any]) -> Callable[[str], Any]:
@@ -246,17 +256,23 @@ class GopherHole:
                 self._agent_id = data.get("agentId")
                 self._reconnect_attempts = 0
                 logger.info(f"Connected to GopherHole as {self._agent_id}")
-                
+
                 # Send agent card if configured
                 if self.agent_card:
                     await self._ws.send(json.dumps({
                         "type": "update_card",
                         "agentCard": self.agent_card,
                     }))
-                
+
                 # Start ping task
                 self._ping_task = asyncio.create_task(self._ping_loop())
-                
+
+                # Fire ready handler — parity with TS SDK's 'ready' event.
+                if self._on_ready and self._agent_id:
+                    result = self._on_ready(self._agent_id)
+                    if asyncio.iscoroutine(result):
+                        await result
+
                 if self._on_connect:
                     result = self._on_connect()
                     if asyncio.iscoroutine(result):
