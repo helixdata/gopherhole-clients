@@ -240,6 +240,8 @@ export interface SendAndWaitOptions extends SendOptions {
 
 type EventMap = {
   connect: () => void;
+  /** Emitted once the hub has authenticated the socket and returned the agent ID (welcome message). */
+  ready: (info: { agentId: string }) => void;
   disconnect: (reason: string) => void;
   reconnecting: (info: { attempt: number; delayMs: number }) => void;
   error: (error: Error) => void;
@@ -810,6 +812,9 @@ export class GopherHole extends EventEmitter<EventMap> {
       // Send agent card if configured
       if (this.agentCard && this.ws?.readyState === 1) {
         this.ws.send(JSON.stringify({ type: 'update_card', agentCard: this.agentCard }));
+      }
+      if (typeof data.agentId === 'string' && data.agentId.length > 0) {
+        this.emit('ready', { agentId: data.agentId });
       }
     } else if (data.type === 'card_updated') {
       // Agent card was successfully updated

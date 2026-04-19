@@ -93,7 +93,12 @@ export class A2AConnectionManager {
     // Set up event handlers
     this.gopherhole.on('connect', () => {
       this.connected = true;
-      console.log('[a2a] Connected to GopherHole Hub via SDK');
+      console.log('[a2a] Connected to GopherHole Hub via SDK (awaiting welcome)');
+    });
+
+    // Welcome received — agent identity is now known
+    this.gopherhole.on('ready', ({ agentId }) => {
+      console.log(`[a2a] GopherHole ready — agent ID: ${agentId}`);
     });
 
     this.gopherhole.on('disconnect', (reason) => {
@@ -118,10 +123,11 @@ export class A2AConnectionManager {
       this.handleSystemMessage(message);
     });
 
-    // Connect
+    // Connect — note: connect() resolves on socket open; the agent ID is
+    // delivered asynchronously via the 'welcome' message, which triggers
+    // the 'ready' event above. Do NOT log gopherhole.id here — it will be null.
     try {
       await this.gopherhole.connect();
-      console.log(`[a2a] GopherHole SDK connected, agent ID: ${this.gopherhole.id}`);
     } catch (err) {
       console.error('[a2a] Failed to connect to GopherHole:', (err as Error).message);
       throw err;
