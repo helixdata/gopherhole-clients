@@ -94,7 +94,7 @@ export const EXTENDED_MEMORY_TOOLS: Tool[] = [
 export const AGENT_TOOLS: Tool[] = [
   {
     name: 'agent_me',
-    description: 'Get identity info for the caller — which GopherHole agent/tenant this MCP session is authenticated as, plus scopes on the API key. Useful for a first "is my key working?" smoke test and for telling the user which account they are connected to.',
+    description: 'Get identity info for the caller — which GopherHole agent/tenant this MCP session is authenticated as, plus scopes on the API key. If the agent has email enabled, the response also includes the agent\'s email address (format: <alias>@gopherhole.io for official agents, <alias>.<tenant-slug>@gopherhole.io otherwise). Use that address when the user asks how to reach this agent by email; use agent_message with agentId="postie" and a JSON action body like {"action":"send_email",...} to send outbound mail.',
     inputSchema: {
       type: 'object' as const,
       properties: {},

@@ -265,6 +265,7 @@ async function main() {
             if (data?.type === 'api_key') {
               const t = data.tenant || {};
               const k = data.apiKey || {};
+              const a = data.agent || null;
               const scopes = Array.isArray(k.scopes) ? k.scopes.join(', ') : 'none';
               const lines = [
                 `**Agent:** ${k.agentId || '(none)'}`,
@@ -272,6 +273,15 @@ async function main() {
                 `**API Key:** ${k.name || k.prefix || k.id} (${k.prefix || ''})`,
                 `**Scopes:** ${scopes}`,
               ];
+              // Surface the agent's email so the LLM can offer/share it
+              // with the user. Send outbound via the "postie" alias.
+              if (a && a.emailAddress) {
+                lines.push(`**Email:** ${a.emailAddress} (send via "postie", receive at this address)`);
+              } else if (a && a.alias && !a.emailEnabled) {
+                lines.push(`**Email:** disabled — alias "${a.alias}" is set; enable with \`gopherhole agents config ${k.agentId} --email-enabled\``);
+              } else if (a && !a.alias) {
+                lines.push(`**Email:** not configured — set an alias with \`gopherhole agents config ${k.agentId} --alias <handle>\`, then enable with \`--email-enabled\``);
+              }
               if (k.lastUsedAt) lines.push(`**Last used:** ${new Date(k.lastUsedAt).toISOString()}`);
               if (k.expiresAt) lines.push(`**Expires:** ${new Date(k.expiresAt).toISOString()}`);
               return { content: [{ type: 'text', text: lines.join('\n') }] };
