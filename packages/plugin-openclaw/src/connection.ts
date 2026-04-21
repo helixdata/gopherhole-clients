@@ -40,6 +40,19 @@ export class A2AConnectionManager {
     const hubUrl = this.config.bridgeUrl || 'wss://hub.gopherhole.ai/ws';
     const timeoutMs = this.config.requestTimeoutMs ?? 180000;
 
+    // Force SDK to use the 'ws' npm module instead of Node's native WebSocket.
+    // Node 22's native WebSocket uses undici which fails inside the OpenClaw gateway
+    // process context, but the 'ws' package works fine.
+    // Also set up global.require so the SDK's ESM __require can find the ws package.
+    try {
+      const { createRequire } = await import('module');
+      const req = createRequire(import.meta.url);
+      (globalThis as any).require = req;
+    } catch {
+      // ignore
+    }
+    (globalThis as any).WebSocket = undefined;
+
     this.gopherhole = new GopherHole({
       apiKey: this.config.apiKey!,
       hubUrl,
