@@ -1,0 +1,41 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.helixdata/gopherhole",
+  "title": "GopherHole Agent Hub",
+  "description": "Standards-based A2A hub. One MCP connection to thousands of agents, with shared persistent memory.",
+  "websiteUrl": "https://gopherhole.ai",
+  "repository": {
+    "url": "https://github.com/helixdata/gopherhole-clients",
+    "source": "github",
+    "subfolder": "packages/mcp"
+  },
+  "version": "0.7.6",
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "@gopherhole/mcp",
+      "version": "0.7.6",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "GOPHERHOLE_API_KEY",
+          "description": "Your GopherHole API key (starts with gph_). Create one at https://gopherhole.ai → Dashboard → Agents.",
+          "isRequired": true,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "GOPHERHOLE_API_URL",
+          "description": "Override the GopherHole hub URL. Defaults to https://hub.gopherhole.ai.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string",
+          "default": "https://hub.gopherhole.ai"
+        }
+      ]
+    }
+  ]
+}
