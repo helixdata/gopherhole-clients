@@ -9,20 +9,20 @@
     "source": "github",
     "subfolder": "packages/mcp"
   },
-  "version": "0.7.6",
+  "version": "0.7.7",
   "packages": [
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@gopherhole/mcp",
-      "version": "0.7.6",
+      "version": "0.7.7",
       "transport": {
         "type": "stdio"
       },
       "environmentVariables": [
         {
           "name": "GOPHERHOLE_API_KEY",
-          "description": "Your GopherHole API key (starts with gph_). Create one at https://gopherhole.ai → Dashboard → Agents.",
+          "description": "Your GopherHole API key (starts with gph_). Create one in the GopherHole dashboard at https://gopherhole.ai/agents.",
           "isRequired": true,
           "isSecret": true,
           "format": "string"
