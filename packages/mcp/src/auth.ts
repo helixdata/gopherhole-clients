@@ -100,16 +100,14 @@ export async function bootstrapAuth(appUrl: string): Promise<string> {
   try {
     callbackResult = await waitForCallback();
   } catch (err) {
-    console.error('  Authentication failed or was cancelled.');
     close();
-    process.exit(1);
+    throw new Error('Authentication failed or was cancelled.');
   }
 
   close();
 
   if (callbackResult.state !== state) {
-    console.error('  OAuth state mismatch — possible CSRF attack. Aborting.');
-    process.exit(1);
+    throw new Error('OAuth state mismatch — possible CSRF attack.');
   }
 
   // Exchange code for access token
@@ -129,8 +127,7 @@ export async function bootstrapAuth(appUrl: string): Promise<string> {
 
   if (!tokenRes.ok) {
     const err = await tokenRes.json().catch(() => ({})) as { error_description?: string };
-    console.error(`  Token exchange failed: ${err.error_description || tokenRes.statusText}`);
-    process.exit(1);
+    throw new Error(`Token exchange failed: ${err.error_description || tokenRes.statusText}`);
   }
 
   const tokenData = await tokenRes.json() as { access_token: string };
@@ -149,8 +146,7 @@ export async function bootstrapAuth(appUrl: string): Promise<string> {
 
   if (!agentRes.ok) {
     const err = await agentRes.json().catch(() => ({})) as { error?: string };
-    console.error(`  Agent provisioning failed: ${err.error || agentRes.statusText}`);
-    process.exit(1);
+    throw new Error(`Agent provisioning failed: ${err.error || agentRes.statusText}`);
   }
 
   const agentData = await agentRes.json() as {
@@ -161,8 +157,7 @@ export async function bootstrapAuth(appUrl: string): Promise<string> {
   };
 
   if (!agentData.api_key) {
-    console.error('  Agent exists but API key is unavailable. Regenerate via the GopherHole dashboard.');
-    process.exit(1);
+    throw new Error('Agent exists but API key is unavailable. Regenerate via the GopherHole dashboard.');
   }
 
   // Store credentials

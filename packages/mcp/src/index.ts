@@ -18,7 +18,7 @@ import type { MemoryType } from '@gopherhole/sdk';
 import { ALL_TOOLS } from './tools.js';
 import { loadStoredApiKey, bootstrapAuth } from './auth.js';
 
-const VERSION = '0.7.4';
+const VERSION = '0.8.1';
 
 // Default memory agent ID (can be overridden via env)
 const MEMORY_AGENT_ID = process.env.GOPHERHOLE_MEMORY_AGENT || 'agent-memory-official';
@@ -97,24 +97,55 @@ async function main() {
     process.exit(0);
   }
 
-  // Resolve API key: env var → stored credentials → OAuth bootstrap
+  // Resolve API key: env var → stored credentials (don't block on OAuth yet)
   const appUrl = process.env.GOPHERHOLE_APP_URL || 'https://gopherhole.ai';
   let apiKey = process.env.GOPHERHOLE_API_KEY || loadStoredApiKey();
-
-  if (!apiKey) {
-    apiKey = await bootstrapAuth(appUrl);
-  }
 
   const transportMode = (process.env.GOPHERHOLE_TRANSPORT || 'http') as TransportMode;
   const apiUrl = process.env.GOPHERHOLE_API_URL || 'https://hub.gopherhole.ai';
   const hubUrl = apiUrl.replace('https://', 'wss://').replace('http://', 'ws://') + '/ws';
 
-  const client = new GopherHole({
+  // Client initialized lazily after auth completes
+  let client: GopherHole | null = apiKey ? new GopherHole({
     apiKey,
     hubUrl,
     transport: transportMode,
     autoReconnect: false,
-  });
+  }) : null;
+
+  // Track background auth state
+  let authInProgress = false;
+  let authError: string | null = null;
+
+  async function ensureClient(): Promise<GopherHole> {
+    if (client) return client;
+
+    if (!authInProgress) {
+      authInProgress = true;
+      authError = null;
+      // Start OAuth in background — don't await here
+      bootstrapAuth(appUrl).then((key) => {
+        apiKey = key;
+        client = new GopherHole({
+          apiKey: key,
+          hubUrl,
+          transport: transportMode,
+          autoReconnect: false,
+        });
+        authInProgress = false;
+        console.error('  GopherHole: Authentication complete. Tools are now available.');
+      }).catch((err) => {
+        authError = err instanceof Error ? err.message : String(err);
+        authInProgress = false;
+      });
+    }
+
+    throw new Error(
+      authInProgress
+        ? 'GopherHole is waiting for authentication. A browser window has been opened — please complete email verification, then retry this tool call.'
+        : `Authentication failed: ${authError}. Remove ~/.config/gopherhole/mcp-credentials.json and try again.`
+    );
+  }
 
   // Create MCP server
   const server = new Server(
@@ -139,6 +170,7 @@ async function main() {
     const { name, arguments: args } = request.params;
 
     try {
+      const gopherhole = await ensureClient();
       switch (name) {
         case 'memory_store': {
           const content = args?.content as string;
@@ -152,7 +184,7 @@ async function main() {
           }
 
           const message = formatStoreMessage(content, tags);
-          const response = await client.askText(MEMORY_AGENT_ID, message);
+          const response = await gopherhole.askText(MEMORY_AGENT_ID, message);
           
           return {
             content: [{ type: 'text', text: response || 'Memory stored successfully' }],
@@ -171,7 +203,7 @@ async function main() {
           }
 
           const message = formatRecallMessage(query, limit);
-          const response = await client.askText(MEMORY_AGENT_ID, message);
+          const response = await gopherhole.askText(MEMORY_AGENT_ID, message);
           
           return {
             content: [{ type: 'text', text: response || 'No memories found' }],
@@ -189,7 +221,7 @@ async function main() {
             };
           }
 
-          const response = await client.askText(MEMORY_AGENT_ID, `Forget memories matching: ${query}`);
+          const response = await gopherhole.askText(MEMORY_AGENT_ID, `Forget memories matching: ${query}`);
           
           return {
             content: [{ type: 'text', text: response || 'Memories deleted' }],
@@ -200,7 +232,7 @@ async function main() {
           const limit = args?.limit as number || 20;
           const offset = args?.offset as number || 0;
           
-          const response = await client.askText(
+          const response = await gopherhole.askText(
             MEMORY_AGENT_ID, 
             `List my recent memories (limit: ${limit}, offset: ${offset})`
           );
@@ -223,7 +255,7 @@ async function main() {
           const offset = args?.offset as number;
           const scope = args?.scope as string;
           
-          const result = await client.discover({ query, category, tag, skillTag, contentMode, owner, verified, sort: sort as any, limit, offset, scope: scope as any });
+          const result = await gopherhole.discover({ query, category, tag, skillTag, contentMode, owner, verified, sort: sort as any, limit, offset, scope: scope as any });
           
           if (result.agents.length === 0) {
             return {
@@ -313,7 +345,7 @@ async function main() {
           const opts = Object.keys(sendOpts).length > 0 ? sendOpts : undefined;
 
           // Send the message — returns a task immediately
-          const task = await client.sendText(agentId, message, opts as any);
+          const task = await gopherhole.sendText(agentId, message, opts as any);
           const taskContextId = (task as any).contextId || contextId || '';
 
           // If the agent is offline and the message was queued, return
@@ -333,7 +365,7 @@ async function main() {
 
           // Agent is online — wait for the response as normal
           try {
-            const completed = await client.waitForTask(task.id, { maxWaitMs: 60_000 });
+            const completed = await gopherhole.waitForTask(task.id, { maxWaitMs: 60_000 });
             const responseText = getTaskResponseText(completed);
             const ctxInfo = taskContextId ? `\n\nContext ID: ${taskContextId} (use this to continue the conversation)` : '';
             return {
@@ -361,7 +393,7 @@ async function main() {
           }
 
           try {
-            const task = await client.getTask(taskId);
+            const task = await gopherhole.getTask(taskId);
             const state = task.status?.state || 'unknown';
             const responseText = getTaskResponseText(task);
 
@@ -401,7 +433,7 @@ async function main() {
           }
 
           try {
-            const task = await client.cancelTask(taskId);
+            const task = await gopherhole.cancelTask(taskId);
             return {
               content: [{ type: 'text', text: `Task ${taskId} canceled. Any queued messages have been purged.` }],
             };
@@ -417,7 +449,7 @@ async function main() {
           const limit = (args?.limit as number) || 10;
           try {
             // List recent tasks
-            const result = await client.listTasks({ pageSize: limit, sortOrder: 'desc' } as any);
+            const result = await gopherhole.listTasks({ pageSize: limit, sortOrder: 'desc' } as any);
             const tasks = result.tasks || [];
 
             if (tasks.length === 0) {
@@ -428,7 +460,7 @@ async function main() {
             const detailed = await Promise.all(
               tasks.slice(0, limit).map(async (t: any) => {
                 try {
-                  return await client.getTask(t.id);
+                  return await gopherhole.getTask(t.id);
                 } catch {
                   return t; // fallback to list data
                 }
@@ -479,7 +511,7 @@ async function main() {
         case 'agent_tasks_pending': {
           const limit = (args?.limit as number) || 20;
           try {
-            const result = await client.listTasks({ status: 'submitted', pageSize: limit } as any);
+            const result = await gopherhole.listTasks({ status: 'submitted', pageSize: limit } as any);
             const tasks = result.tasks || [];
             if (tasks.length === 0) {
               return {
@@ -510,7 +542,7 @@ async function main() {
             };
           }
           try {
-            const result = await client.listTasks({ status: 'submitted', pageSize: 100 } as any);
+            const result = await gopherhole.listTasks({ status: 'submitted', pageSize: 100 } as any);
             const tasks = result.tasks || [];
             if (tasks.length === 0) {
               return {
@@ -521,7 +553,7 @@ async function main() {
             let failed = 0;
             for (const t of tasks) {
               try {
-                await client.cancelTask(t.id);
+                await gopherhole.cancelTask(t.id);
                 canceled++;
               } catch {
                 failed++;
@@ -556,7 +588,7 @@ async function main() {
             };
           }
 
-          const result = await client.discoverNearby({ lat, lng, radius, tag, category, limit });
+          const result = await gopherhole.discoverNearby({ lat, lng, radius, tag, category, limit });
           
           if (result.agents.length === 0) {
             return {
@@ -578,7 +610,7 @@ async function main() {
         // ============================================================
 
         case 'workspace_list': {
-          const result = await client.workspaceList();
+          const result = await gopherhole.workspaceList();
           
           if (result.workspaces.length === 0) {
             return {
@@ -606,7 +638,7 @@ async function main() {
             };
           }
 
-          const result = await client.workspaceCreate(wsName, description);
+          const result = await gopherhole.workspaceCreate(wsName, description);
           
           return {
             content: [{ type: 'text', text: `Workspace created!\n\nID: ${result.workspace.id}\nName: ${result.workspace.name}` }],
@@ -625,7 +657,7 @@ async function main() {
             };
           }
 
-          await client.workspaceMembersAdd(workspaceId, agentId, role);
+          await gopherhole.workspaceMembersAdd(workspaceId, agentId, role);
           
           return {
             content: [{ type: 'text', text: `Added agent ${agentId} to workspace with role: ${role}` }],
@@ -642,7 +674,7 @@ async function main() {
             };
           }
 
-          const result = await client.workspaceMembersList(workspaceId);
+          const result = await gopherhole.workspaceMembersList(workspaceId);
           
           const list = result.members.map(m => 
             `• ${m.agent_name || m.agent_id} (${m.role})`
@@ -666,7 +698,7 @@ async function main() {
             };
           }
 
-          const result = await client.workspaceStore({
+          const result = await gopherhole.workspaceStore({
             workspace_id: workspaceId,
             content,
             type: memType ?? 'fact',
@@ -691,7 +723,7 @@ async function main() {
             };
           }
 
-          const result = await client.workspaceQuery({
+          const result = await gopherhole.workspaceQuery({
             workspace_id: workspaceId,
             query,
             type: memType as MemoryType | undefined,
@@ -725,7 +757,7 @@ async function main() {
             };
           }
 
-          const result = await client.workspaceMemories({
+          const result = await gopherhole.workspaceMemories({
             workspace_id: workspaceId,
             limit,
             offset,
@@ -765,7 +797,7 @@ async function main() {
             };
           }
 
-          const result = await client.workspaceForget({
+          const result = await gopherhole.workspaceForget({
             workspace_id: workspaceId,
             id: memoryId,
             query,
