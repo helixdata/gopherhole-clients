@@ -16,14 +16,12 @@ import {
 import { GopherHole, TransportMode, getTaskResponseText } from '@gopherhole/sdk';
 import type { MemoryType } from '@gopherhole/sdk';
 import { ALL_TOOLS } from './tools.js';
+import { loadStoredApiKey, bootstrapAuth } from './auth.js';
 
 const VERSION = '0.7.4';
 
 // Default memory agent ID (can be overridden via env)
 const MEMORY_AGENT_ID = process.env.GOPHERHOLE_MEMORY_AGENT || 'agent-memory-official';
-
-// Default app URL for hub-level REST endpoints (whoami, etc.)
-const APP_URL = process.env.GOPHERHOLE_APP_URL || 'https://gopherhole.ai';
 
 const HELP_TEXT = `gopherhole-mcp v${VERSION}
 
@@ -33,8 +31,15 @@ Code, Cursor, and other MCP-compatible IDEs.
 USAGE
   gopherhole-mcp [--help] [--version]
 
+AUTHENTICATION
+  On first run, a browser window will open for email verification.
+  Your API key is saved to ~/.config/gopherhole/mcp-credentials.json.
+  Subsequent runs use the stored key automatically.
+
+  To skip auto-registration, set GOPHERHOLE_API_KEY manually.
+
 ENVIRONMENT
-  GOPHERHOLE_API_KEY       (required) API key from https://gopherhole.ai
+  GOPHERHOLE_API_KEY       API key (auto-provisioned if not set)
   GOPHERHOLE_TRANSPORT     http | ws            (default: http)
   GOPHERHOLE_API_URL       Hub base URL         (default: https://hub.gopherhole.ai)
   GOPHERHOLE_APP_URL       App base URL         (default: https://gopherhole.ai)
@@ -45,8 +50,7 @@ EXAMPLE (Claude Desktop / Code mcp.json)
     "mcpServers": {
       "gopherhole": {
         "command": "npx",
-        "args": ["-y", "@gopherhole/mcp"],
-        "env": { "GOPHERHOLE_API_KEY": "gph_..." }
+        "args": ["-y", "@gopherhole/mcp"]
       }
     }
   }
@@ -93,21 +97,12 @@ async function main() {
     process.exit(0);
   }
 
-  // Initialize GopherHole client
-  const apiKey = process.env.GOPHERHOLE_API_KEY;
+  // Resolve API key: env var → stored credentials → OAuth bootstrap
+  const appUrl = process.env.GOPHERHOLE_APP_URL || 'https://gopherhole.ai';
+  let apiKey = process.env.GOPHERHOLE_API_KEY || loadStoredApiKey();
+
   if (!apiKey) {
-    console.error('');
-    console.error('  GopherHole MCP: GOPHERHOLE_API_KEY is not set.');
-    console.error('');
-    console.error('  Get your API key at https://gopherhole.ai');
-    console.error('  Then set it in your MCP client config, e.g.:');
-    console.error('');
-    console.error('    "env": { "GOPHERHOLE_API_KEY": "gph_..." }');
-    console.error('');
-    console.error('  Docs: https://docs.gopherhole.ai/integrations/ide-mcp');
-    console.error('  Run `gopherhole-mcp --help` for all env vars.');
-    console.error('');
-    process.exit(1);
+    apiKey = await bootstrapAuth(appUrl);
   }
 
   const transportMode = (process.env.GOPHERHOLE_TRANSPORT || 'http') as TransportMode;
@@ -249,7 +244,7 @@ async function main() {
           // Call /api/auth/whoami on the app host to resolve the calling
           // API key to its identity (tenant + agent + scopes).
           try {
-            const res = await fetch(`${APP_URL}/api/auth/whoami`, {
+            const res = await fetch(`${appUrl}/api/auth/whoami`, {
               headers: { Authorization: `Bearer ${apiKey}` },
             });
             if (!res.ok) {
