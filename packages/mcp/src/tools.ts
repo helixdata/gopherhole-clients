@@ -3,6 +3,7 @@
  */
 
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
+import { ADMIN_TOOLS } from './admin-tools.js';
 
 /**
  * Phase 1 Tools - Memory
@@ -464,6 +465,7 @@ export const ALL_TOOLS: Tool[] = [
   ...EXTENDED_MEMORY_TOOLS,
   ...AGENT_TOOLS,
   ...WORKSPACE_TOOLS,
+  ...ADMIN_TOOLS,
 ];
 
 /**

@@ -16,9 +16,10 @@ import {
 import { GopherHole, TransportMode, getTaskResponseText } from '@gopherhole/sdk';
 import type { MemoryType } from '@gopherhole/sdk';
 import { ALL_TOOLS } from './tools.js';
-import { loadStoredApiKey, bootstrapAuth } from './auth.js';
+import { loadStoredApiKey, loadStoredAccessToken, bootstrapAuth } from './auth.js';
+import { handleAdminTool } from './admin.js';
 
-const VERSION = '0.8.1';
+const VERSION = '0.9.0';
 
 // Default memory agent ID (can be overridden via env)
 const MEMORY_AGENT_ID = process.env.GOPHERHOLE_MEMORY_AGENT || 'agent-memory-official';
@@ -123,11 +124,10 @@ async function main() {
     if (!authInProgress) {
       authInProgress = true;
       authError = null;
-      // Start OAuth in background — don't await here
-      bootstrapAuth(appUrl).then((key) => {
-        apiKey = key;
+      bootstrapAuth(appUrl).then((result) => {
+        apiKey = result.apiKey;
         client = new GopherHole({
-          apiKey: key,
+          apiKey: result.apiKey,
           hubUrl,
           transport: transportMode,
           autoReconnect: false,
@@ -168,6 +168,11 @@ async function main() {
   // Handle tools/call
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
+
+    // Route admin_* tools to the admin handler (uses OAuth access token)
+    if (name.startsWith('admin_')) {
+      return handleAdminTool(name, args as Record<string, any> | undefined, { appUrl, apiUrl });
+    }
 
     try {
       const gopherhole = await ensureClient();

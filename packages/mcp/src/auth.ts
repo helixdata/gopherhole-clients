@@ -21,6 +21,8 @@ interface StoredCredentials {
   alias: string;
   ide: string;
   createdAt: string;
+  accessToken?: string;
+  accessTokenExpiresAt?: string;
 }
 
 export function loadStoredApiKey(): string | null {
@@ -31,6 +33,41 @@ export function loadStoredApiKey(): string | null {
   } catch {
     return null;
   }
+}
+
+export function loadStoredAccessToken(): string | null {
+  try {
+    if (!existsSync(CREDENTIALS_FILE)) return null;
+    const data = JSON.parse(readFileSync(CREDENTIALS_FILE, 'utf-8')) as StoredCredentials;
+    if (!data.accessToken || !data.accessTokenExpiresAt) return null;
+    if (new Date(data.accessTokenExpiresAt).getTime() < Date.now()) return null;
+    return data.accessToken;
+  } catch {
+    return null;
+  }
+}
+
+export function storeAccessToken(accessToken: string, expiresIn: number): void {
+  try {
+    const existing = existsSync(CREDENTIALS_FILE)
+      ? JSON.parse(readFileSync(CREDENTIALS_FILE, 'utf-8')) as StoredCredentials
+      : null;
+    if (!existing) return;
+    existing.accessToken = accessToken;
+    existing.accessTokenExpiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+    writeFileSync(CREDENTIALS_FILE, JSON.stringify(existing, null, 2), { mode: 0o600 });
+  } catch {
+    // Non-fatal — admin tools just won't work until next full auth
+  }
+}
+
+/**
+ * Re-authenticate to get a fresh admin token (opens browser).
+ * Used when the stored access token has expired.
+ */
+export async function refreshAdminToken(appUrl: string): Promise<{ accessToken: string; expiresAt: string }> {
+  const result = await bootstrapAuth(appUrl);
+  return { accessToken: result.accessToken, expiresAt: result.accessTokenExpiresAt };
 }
 
 function storeCredentials(creds: StoredCredentials): void {
@@ -62,11 +99,16 @@ function detectIde(): string {
   return 'mcp';
 }
 
+export interface AuthResult {
+  apiKey: string;
+  accessToken: string;
+  accessTokenExpiresAt: string;
+}
+
 /**
- * Run the OAuth browser flow and return an API key.
- * Exits the process if the user cancels or auth fails.
+ * Run the OAuth browser flow and return an API key + access token.
  */
-export async function bootstrapAuth(appUrl: string): Promise<string> {
+export async function bootstrapAuth(appUrl: string): Promise<AuthResult> {
   const ide = detectIde();
   const { verifier, challenge } = generatePKCE();
   const state = base64url(randomBytes(16));
@@ -84,7 +126,7 @@ export async function bootstrapAuth(appUrl: string): Promise<string> {
   authorizeUrl.searchParams.set('code_challenge_method', 'S256');
   authorizeUrl.searchParams.set('state', state);
   authorizeUrl.searchParams.set('response_type', 'code');
-  authorizeUrl.searchParams.set('scope', 'agent:create');
+  authorizeUrl.searchParams.set('scope', 'agent:create admin');
 
   // Open browser
   console.error('');
@@ -130,7 +172,7 @@ export async function bootstrapAuth(appUrl: string): Promise<string> {
     throw new Error(`Token exchange failed: ${err.error_description || tokenRes.statusText}`);
   }
 
-  const tokenData = await tokenRes.json() as { access_token: string };
+  const tokenData = await tokenRes.json() as { access_token: string; expires_in: number };
 
   // Create/retrieve MCP agent
   console.error('  Provisioning agent...');
@@ -160,20 +202,23 @@ export async function bootstrapAuth(appUrl: string): Promise<string> {
     throw new Error('Agent exists but API key is unavailable. Regenerate via the GopherHole dashboard.');
   }
 
-  // Store credentials
+  // Store credentials (including access token for admin ops)
   storeCredentials({
     apiKey: agentData.api_key,
     agentId: agentData.agent_id,
     alias: agentData.alias,
     ide,
     createdAt: new Date().toISOString(),
+    accessToken: tokenData.access_token,
+    accessTokenExpiresAt: new Date(Date.now() + tokenData.expires_in * 1000).toISOString(),
   });
 
   console.error(`  Authenticated! Agent: @${agentData.alias} (${agentData.agent_id})`);
   console.error(`  Credentials saved to ${CREDENTIALS_FILE}`);
   console.error('');
 
-  return agentData.api_key;
+  const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000).toISOString();
+  return { apiKey: agentData.api_key, accessToken: tokenData.access_token, accessTokenExpiresAt: expiresAt };
 }
 
 // ============================================
