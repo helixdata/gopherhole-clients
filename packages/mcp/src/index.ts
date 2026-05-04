@@ -19,7 +19,7 @@ import { ALL_TOOLS } from './tools.js';
 import { loadStoredApiKey, loadStoredAccessToken, bootstrapAuth } from './auth.js';
 import { handleAdminTool } from './admin.js';
 
-const VERSION = '0.9.0';
+const VERSION = '0.9.1';
 
 // Default memory agent ID (can be overridden via env)
 const MEMORY_AGENT_ID = process.env.GOPHERHOLE_MEMORY_AGENT || 'agent-memory-official';
@@ -576,6 +576,44 @@ async function main() {
               isError: true,
             };
           }
+        }
+
+        case 'agent_request_access': {
+          const targetAgentId = args?.agentId as string;
+          if (!targetAgentId) {
+            return {
+              content: [{ type: 'text', text: 'Error: agentId is required' }],
+              isError: true,
+            };
+          }
+          const scopes = (args?.scopes as string[]) || ['messages:send'];
+          const reason = args?.reason as string | undefined;
+
+          const res = await fetch(`${appUrl}/api/access/request`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({ targetAgentId, scopes, reason }),
+          });
+
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({})) as { error?: string };
+            return {
+              content: [{ type: 'text', text: `Error: ${(err as any).error || res.statusText}` }],
+              isError: true,
+            };
+          }
+
+          const data = await res.json() as { grant: { id: string; status: string } };
+          const statusMsg = data.grant.status === 'approved'
+            ? `Access granted immediately (auto-approved). You can now message \`${targetAgentId}\`.`
+            : `Access request submitted (pending manual approval by the target tenant).`;
+
+          return {
+            content: [{ type: 'text', text: `${statusMsg}\n\nGrant ID: \`${data.grant.id}\`\nStatus: ${data.grant.status}` }],
+          };
         }
 
         case 'agent_discover_nearby': {

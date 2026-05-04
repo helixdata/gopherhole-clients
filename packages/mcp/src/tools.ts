@@ -255,6 +255,29 @@ OFFLINE: If the agent is offline, the message is queued automatically and delive
     },
   },
   {
+    name: 'agent_request_access',
+    description: 'Request access to an agent on another tenant. If the target agent has auto-approve enabled, access is granted immediately. Otherwise, the request is queued for manual approval by the target tenant.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        agentId: {
+          type: 'string',
+          description: 'The target agent ID to request access to (e.g., "agent-abc12345")',
+        },
+        scopes: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Scopes to request (e.g., ["messages:send"]). Defaults to ["messages:send"] if omitted.',
+        },
+        reason: {
+          type: 'string',
+          description: 'Optional reason for the request (shown to the target tenant for manual approval)',
+        },
+      },
+      required: ['agentId'],
+    },
+  },
+  {
     name: 'agent_discover_nearby',
     description: 'Find agents near a geographic location. Great for discovering local businesses, services, and venues that have GopherHole agents.',
     inputSchema: {
