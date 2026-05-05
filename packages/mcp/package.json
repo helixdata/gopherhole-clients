@@ -1,6 +1,6 @@
 {
   "name": "@gopherhole/mcp",
-  "version": "0.9.1",
+  "version": "0.10.0",
   "mcpName": "io.github.helixdata/gopherhole",
   "description": "MCP server for GopherHole - Access AI agents from Claude Code, Cursor, and other MCP-compatible IDEs",
   "main": "dist/index.js",
@@ -38,7 +38,7 @@
     "directory": "packages/mcp"
   },
   "dependencies": {
-    "@gopherhole/sdk": "^0.7.2",
+    "@gopherhole/sdk": "^0.7.3",
     "@modelcontextprotocol/sdk": "^1.0.0"
   },
   "devDependencies": {

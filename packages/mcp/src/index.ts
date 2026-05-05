@@ -13,13 +13,15 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { GopherHole, TransportMode, getTaskResponseText } from '@gopherhole/sdk';
 import type { MemoryType } from '@gopherhole/sdk';
 import { ALL_TOOLS } from './tools.js';
 import { loadStoredApiKey, loadStoredAccessToken, bootstrapAuth } from './auth.js';
 import { handleAdminTool } from './admin.js';
 
-const VERSION = '0.9.1';
+const VERSION = '0.10.0';
 
 // Default memory agent ID (can be overridden via env)
 const MEMORY_AGENT_ID = process.env.GOPHERHOLE_MEMORY_AGENT || 'agent-memory-official';
@@ -59,6 +61,31 @@ EXAMPLE (Claude Desktop / Code mcp.json)
 DOCS
   https://docs.gopherhole.ai/integrations/ide-mcp
 `;
+
+/**
+ * Load secrets for a target agent from .gopherhole/secrets/{alias}.json.
+ * Returns null if no secrets file exists.
+ */
+function loadAgentSecrets(agentId: string): Record<string, string> | null {
+  const alias = agentId.startsWith('agent-') ? agentId : agentId;
+  const secretsDir = join(process.cwd(), '.gopherhole', 'secrets');
+  const filePath = join(secretsDir, `${alias}.json`);
+
+  if (!existsSync(filePath)) return null;
+
+  try {
+    const raw = readFileSync(filePath, 'utf-8');
+    const parsed = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null) return null;
+    const secrets: Record<string, string> = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      if (typeof v === 'string') secrets[k] = v;
+    }
+    return Object.keys(secrets).length > 0 ? secrets : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Format tags for the memory store message
@@ -335,7 +362,7 @@ async function main() {
           const message = args?.message as string;
           const ttl = args?.ttl as number | undefined;
           const contextId = args?.contextId as string | undefined;
-          
+
           if (!agentId || !message) {
             return {
               content: [{ type: 'text', text: 'Error: agentId and message are required' }],
@@ -347,6 +374,11 @@ async function main() {
           const sendOpts: Record<string, unknown> = {};
           if (ttl !== undefined) sendOpts.ttl = ttl;
           if (contextId) sendOpts.contextId = contextId;
+
+          // Auto-attach secrets from .gopherhole/secrets/{alias}.json
+          const secrets = loadAgentSecrets(agentId);
+          if (secrets) sendOpts.secrets = secrets;
+
           const opts = Object.keys(sendOpts).length > 0 ? sendOpts : undefined;
 
           // Send the message — returns a task immediately
