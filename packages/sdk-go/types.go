@@ -430,3 +430,24 @@ type WorkspaceMemoriesResult struct {
 	Count    int               `json:"count"`
 	Total    int               `json:"total"`
 }
+
+// WorkspaceSecret represents a secret retrieved from a workspace.
+type WorkspaceSecret struct {
+	Key       string `json:"key"`
+	Value     string `json:"value"`
+	CreatedAt int64  `json:"created_at"`
+}
+
+// SecretInfo represents metadata about a workspace secret (no value).
+type SecretInfo struct {
+	Key       string `json:"key"`
+	CreatedAt int64  `json:"created_at"`
+	UpdatedAt int64  `json:"updated_at,omitempty"`
+}
+
+// AccessRequest represents the result of requesting access to an agent.
+type AccessRequest struct {
+	ID        string `json:"id"`
+	Status    string `json:"status"`
+	CreatedAt string `json:"created_at"`
+}

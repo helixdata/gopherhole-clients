@@ -27,6 +27,7 @@ from gopherhole.types import (
     Message,
     MessagePayload,
     PublicAgent,
+    SecretInfo,
     SendOptions,
     Task,
     TaskListResult,
@@ -792,6 +793,43 @@ class GopherHole:
         
         return await self._rpc("x-gopherhole/agents.discover", params)
 
+    async def discover_nearby(
+        self,
+        lat: float,
+        lng: float,
+        radius: float = 10.0,
+        tag: Optional[str] = None,
+        category: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ) -> dict[str, Any]:
+        """
+        Discover agents near a geographic location.
+
+        Args:
+            lat: Latitude (decimal degrees).
+            lng: Longitude (decimal degrees).
+            radius: Search radius in kilometres (default 10.0).
+            tag: Filter by tag.
+            category: Filter by category.
+            limit: Max results.
+            offset: Pagination offset.
+
+        Returns:
+            Dict with ``agents``, ``center`` (lat/lng), ``radius``, ``count``, ``offset``.
+        """
+        params: dict[str, Any] = {"lat": lat, "lng": lng, "radius": radius}
+        if tag:
+            params["tag"] = tag
+        if category:
+            params["category"] = category
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
+
+        return await self._rpc("x-gopherhole/agents.discover.nearby", params)
+
     async def _rpc(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         """Make a JSON-RPC call via the configured transport."""
         return await self._transport.request(method, params)
@@ -989,6 +1027,37 @@ class GopherHole:
             return agent
         
         return None
+
+    async def request_access(
+        self, agent_id: str, reason: Optional[str] = None
+    ) -> dict:
+        """
+        Request access to a private agent.
+
+        Args:
+            agent_id: The agent ID to request access to.
+            reason: Optional message to include with the request.
+
+        Returns:
+            Dict with ``success`` and ``grantId``.
+        """
+        if not self._http:
+            self._http = httpx.AsyncClient(
+                base_url=self.api_url,
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                timeout=self.request_timeout,
+            )
+
+        payload: dict[str, Any] = {}
+        if reason:
+            payload["reason"] = reason
+
+        response = await self._http.post(
+            f"/api/discover/agents/{agent_id}/request-access",
+            json=payload,
+        )
+        response.raise_for_status()
+        return response.json()
 
     # ============================================================
     # WORKSPACE METHODS (GopherHole Extension)
@@ -1236,6 +1305,73 @@ class GopherHole:
         """Get available memory types."""
         result = await self._rpc("x-gopherhole/workspace.types", {})
         return result.get("types", [])
+
+    async def workspace_secrets_set(
+        self, workspace_id: str, key: str, value: str
+    ) -> dict:
+        """
+        Store or overwrite a secret in a workspace.
+
+        Args:
+            workspace_id: Workspace ID.
+            key: Secret key name.
+            value: Secret value (stored encrypted).
+
+        Returns:
+            Dict with ``success`` and ``key``.
+        """
+        return await self._rpc(
+            "x-gopherhole/workspace.secrets.set",
+            {"workspace_id": workspace_id, "key": key, "value": value},
+        )
+
+    async def workspace_secrets_get(self, workspace_id: str, key: str) -> dict:
+        """
+        Retrieve a workspace secret by key.
+
+        Args:
+            workspace_id: Workspace ID.
+            key: Secret key name.
+
+        Returns:
+            Dict with ``key``, ``value``, and ``created_at``.
+        """
+        return await self._rpc(
+            "x-gopherhole/workspace.secrets.get",
+            {"workspace_id": workspace_id, "key": key},
+        )
+
+    async def workspace_secrets_delete(self, workspace_id: str, key: str) -> dict:
+        """
+        Delete a workspace secret.
+
+        Args:
+            workspace_id: Workspace ID.
+            key: Secret key name.
+
+        Returns:
+            Dict with ``deleted: true``.
+        """
+        return await self._rpc(
+            "x-gopherhole/workspace.secrets.delete",
+            {"workspace_id": workspace_id, "key": key},
+        )
+
+    async def workspace_secrets_list(self, workspace_id: str) -> list[SecretInfo]:
+        """
+        List secret keys in a workspace (values are never returned).
+
+        Args:
+            workspace_id: Workspace ID.
+
+        Returns:
+            List of secret metadata (key, created_at, updated_at).
+        """
+        result = await self._rpc(
+            "x-gopherhole/workspace.secrets.list",
+            {"workspace_id": workspace_id},
+        )
+        return [SecretInfo(**s) for s in result.get("secrets", [])]
 
     # Context manager support
     async def __aenter__(self) -> "GopherHole":

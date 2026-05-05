@@ -229,6 +229,13 @@ export interface SendOptions {
    * - `undefined` = use recipient's default (typically 30 days)
    */
   ttl?: number;
+  /**
+   * Secrets to attach to this message (GopherHole extension: x-gopherhole-secrets).
+   * Key-value pairs (e.g. `{ api_key: "sk-..." }`) delivered to the recipient
+   * agent via the envelope. The hub stores these per sender+receiver pair so
+   * subsequent messages auto-attach them without resending.
+   */
+  secrets?: Record<string, string>;
 }
 
 export interface SendAndWaitOptions extends SendOptions {
@@ -418,7 +425,7 @@ export class GopherHole extends EventEmitter<EventMap> {
    * Send a message to another agent
    */
   async send(toAgentId: string, payload: MessagePayload, options?: SendOptions): Promise<Task> {
-    const { timeoutMs, ttl, ...config } = options || {};
+    const { timeoutMs, ttl, secrets, ...config } = options || {};
     const configuration: Record<string, unknown> = {
       agentId: toAgentId,
       ...config,
@@ -426,6 +433,10 @@ export class GopherHole extends EventEmitter<EventMap> {
     // Map friendly `ttl` to GopherHole extension field `x-ttl`
     if (ttl !== undefined) {
       configuration['x-ttl'] = ttl;
+    }
+    // Map secrets to GopherHole extension field
+    if (secrets && Object.keys(secrets).length > 0) {
+      configuration['x-gopherhole-secrets'] = secrets;
     }
     const response = await this.rpc('message/send', {
       message: payload,

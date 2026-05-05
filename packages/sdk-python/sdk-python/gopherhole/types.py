@@ -443,6 +443,14 @@ class WorkspaceMemoriesResult(BaseModel):
 
 class WorkspaceQueryResult(BaseModel):
     """Result of querying workspace memories."""
-    
+
     memories: list[WorkspaceMemory]
     count: int
+
+
+class SecretInfo(BaseModel):
+    """Metadata for a workspace secret (value is never returned in list)."""
+
+    key: str
+    created_at: int
+    updated_at: Optional[int] = None

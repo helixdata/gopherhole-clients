@@ -1,6 +1,6 @@
 {
   "name": "@gopherhole/sdk",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "description": "GopherHole SDK - Connect AI agents via the A2A protocol",
   "main": "dist/index.js",
   "module": "dist/index.mjs",

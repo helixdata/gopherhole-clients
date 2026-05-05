@@ -893,6 +893,55 @@ func (c *Client) WorkspaceTypes(ctx context.Context) ([]MemoryType, error) {
 	return types, nil
 }
 
+// WorkspaceSecretsSet stores a secret in a workspace.
+func (c *Client) WorkspaceSecretsSet(ctx context.Context, workspaceID, key, value string) error {
+	params := map[string]interface{}{
+		"workspace_id": workspaceID,
+		"key":          key,
+		"value":        value,
+	}
+	return c.rpc(ctx, "x-gopherhole/workspace.secrets.set", params, nil)
+}
+
+// WorkspaceSecretsGet retrieves a secret value from a workspace.
+func (c *Client) WorkspaceSecretsGet(ctx context.Context, workspaceID, key string) (string, error) {
+	params := map[string]interface{}{
+		"workspace_id": workspaceID,
+		"key":          key,
+	}
+	var result struct {
+		Key   string `json:"key"`
+		Value string `json:"value"`
+	}
+	if err := c.rpc(ctx, "x-gopherhole/workspace.secrets.get", params, &result); err != nil {
+		return "", err
+	}
+	return result.Value, nil
+}
+
+// WorkspaceSecretsDelete deletes a secret from a workspace.
+func (c *Client) WorkspaceSecretsDelete(ctx context.Context, workspaceID, key string) error {
+	params := map[string]interface{}{
+		"workspace_id": workspaceID,
+		"key":          key,
+	}
+	return c.rpc(ctx, "x-gopherhole/workspace.secrets.delete", params, nil)
+}
+
+// WorkspaceSecretsList lists secrets in a workspace (keys only, no values).
+func (c *Client) WorkspaceSecretsList(ctx context.Context, workspaceID string) ([]SecretInfo, error) {
+	params := map[string]interface{}{
+		"workspace_id": workspaceID,
+	}
+	var result struct {
+		Secrets []SecretInfo `json:"secrets"`
+	}
+	if err := c.rpc(ctx, "x-gopherhole/workspace.secrets.list", params, &result); err != nil {
+		return nil, err
+	}
+	return result.Secrets, nil
+}
+
 // Discovery methods (GopherHole extension)
 
 // ListAvailableAgentsOptions configures the ListAvailableAgents call.
@@ -1010,6 +1059,87 @@ func (c *Client) DiscoverAgents(ctx context.Context, opts *DiscoverAgentsOptions
 	
 	var result DiscoverAgentsResult
 	if err := c.rpc(ctx, "x-gopherhole/agents.discover", params, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// DiscoverNearbyOptions configures the DiscoverNearby call.
+type DiscoverNearbyOptions struct {
+	Lat      float64 `json:"lat"`
+	Lng      float64 `json:"lng"`
+	Radius   float64 `json:"radius,omitempty"`
+	Tag      string  `json:"tag,omitempty"`
+	Category string  `json:"category,omitempty"`
+	Limit    int     `json:"limit,omitempty"`
+	Offset   int     `json:"offset,omitempty"`
+}
+
+// AgentLocation represents a geographic location for an agent.
+type AgentLocation struct {
+	Name    string  `json:"name"`
+	Lat     float64 `json:"lat"`
+	Lng     float64 `json:"lng"`
+	Country string  `json:"country"`
+}
+
+// NearbyAgent represents an agent with location data.
+type NearbyAgent struct {
+	DiscoveredAgent
+	Location AgentLocation `json:"location"`
+	Distance float64       `json:"distance"`
+}
+
+// DiscoverNearbyResult contains the results of a nearby agent search.
+type DiscoverNearbyResult struct {
+	Agents []NearbyAgent `json:"agents"`
+	Center struct {
+		Lat float64 `json:"lat"`
+		Lng float64 `json:"lng"`
+	} `json:"center"`
+	Radius float64 `json:"radius"`
+	Count  int     `json:"count"`
+	Offset int     `json:"offset"`
+}
+
+// DiscoverNearby searches for agents near a geographic location.
+func (c *Client) DiscoverNearby(ctx context.Context, opts *DiscoverNearbyOptions) (*DiscoverNearbyResult, error) {
+	params := map[string]interface{}{
+		"lat": opts.Lat,
+		"lng": opts.Lng,
+	}
+	if opts.Radius > 0 {
+		params["radius"] = opts.Radius
+	}
+	if opts.Tag != "" {
+		params["tag"] = opts.Tag
+	}
+	if opts.Category != "" {
+		params["category"] = opts.Category
+	}
+	if opts.Limit > 0 {
+		params["limit"] = opts.Limit
+	}
+	if opts.Offset > 0 {
+		params["offset"] = opts.Offset
+	}
+
+	var result DiscoverNearbyResult
+	if err := c.rpc(ctx, "x-gopherhole/agents.discover.nearby", params, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// RequestAccess sends an access request to a public agent.
+func (c *Client) RequestAccess(ctx context.Context, agentID string, reason string) (*AccessRequest, error) {
+	body := map[string]interface{}{}
+	if reason != "" {
+		body["reason"] = reason
+	}
+
+	var result AccessRequest
+	if err := c.httpPost(ctx, c.apiURL+"/api/discover/agents/"+agentID+"/request-access", body, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil

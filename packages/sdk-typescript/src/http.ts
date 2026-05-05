@@ -336,6 +336,26 @@ export class A2AClient {
   }
 
   /**
+   * Request access to a private agent
+   */
+  async requestAccess(agentId: string, reason?: string): Promise<{ id: string; status: string; created_at: string }> {
+    const apiUrl = this.baseUrl.replace('/a2a', '');
+    const response = await fetch(`${apiUrl}/api/discover/agents/${agentId}/request-access`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify(reason ? { reason } : {}),
+    });
+    if (!response.ok) {
+      const data = await response.json() as { error?: string };
+      throw new Error(data.error || `HTTP ${response.status}`);
+    }
+    return response.json() as Promise<{ id: string; status: string; created_at: string }>;
+  }
+
+  /**
    * Create client from environment variables
    */
   static fromEnv(options?: Partial<A2AClientOptions>): A2AClient {
