@@ -1,0 +1,423 @@
+name: Client Smoke Tests
+
+on:
+  schedule:
+    # Every 6 hours — catches regressions without burning CI minutes
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      notify_on_success:
+        description: 'Send email even on success'
+        type: boolean
+        default: false
+
+env:
+  HUB_URL: https://hub.gopherhole.ai
+  TARGET_AGENT: agent-6c6f2e3c66da  # sentry-buddy
+  EXPECTED_ACK: 'ack:sentry-buddy'
+
+jobs:
+  # ─── TypeScript SDK ───────────────────────────────────────────────
+  sdk-typescript:
+    name: TypeScript SDK (latest)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install SDK
+        run: npm install @gopherhole/sdk@latest
+
+      - name: Run smoke test
+        env:
+          GOPHERHOLE_API_KEY: ${{ secrets.GOPHERHOLE_API_KEY }}
+        run: |
+          node -e "
+          const { A2AClient, getTaskResponseText } = require('@gopherhole/sdk');
+
+          async function main() {
+            const client = new A2AClient({
+              apiKey: process.env.GOPHERHOLE_API_KEY,
+              baseUrl: '${HUB_URL}/a2a',
+            });
+
+            // Test 1: Send blocking message
+            console.log('[ts-sdk] Sending blocking message...');
+            const task = await client.sendMessage(
+              { role: 'user', parts: [{ kind: 'text', text: 'ping' }] },
+              { agentId: '${TARGET_AGENT}', blocking: true }
+            );
+            if (!task || !task.id) throw new Error('sendMessage returned no task');
+            console.log('[ts-sdk] Got task:', task.id, 'state:', task.status.state);
+
+            // Test 2: getTaskResponseText works
+            const text = getTaskResponseText(task);
+            if (!text.startsWith('${EXPECTED_ACK}')) {
+              throw new Error('Unexpected response: ' + text.slice(0, 100));
+            }
+            console.log('[ts-sdk] Response text OK:', text.slice(0, 50));
+
+            // Test 3: Non-blocking + poll (sendTextAndWait pattern)
+            console.log('[ts-sdk] Testing non-blocking send + poll...');
+            const task2 = await client.sendText('${TARGET_AGENT}', 'ping');
+            if (!task2.id) throw new Error('sendText returned no task');
+
+            let current = task2;
+            const terminal = new Set(['completed', 'failed', 'canceled', 'rejected']);
+            const deadline = Date.now() + 30000;
+            while (!terminal.has(current.status.state)) {
+              if (Date.now() > deadline) throw new Error('Poll timeout in state: ' + current.status.state);
+              await new Promise(r => setTimeout(r, 1000));
+              current = await client.getTask(current.id);
+            }
+            if (current.status.state !== 'completed') {
+              throw new Error('Task ended in state: ' + current.status.state);
+            }
+            const text2 = getTaskResponseText(current);
+            if (!text2.startsWith('${EXPECTED_ACK}')) {
+              throw new Error('Poll response unexpected: ' + text2.slice(0, 100));
+            }
+            console.log('[ts-sdk] Poll flow OK');
+            console.log('[ts-sdk] ALL CHECKS PASSED');
+          }
+          main().catch(e => { console.error('[ts-sdk] FAILED:', e.message); process.exit(1); });
+          "
+
+  # ─── Python SDK ──────────────────────────────────────────────────
+  sdk-python:
+    name: Python SDK (latest)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install SDK
+        run: pip install gopherhole --upgrade
+
+      - name: Run smoke test
+        env:
+          GOPHERHOLE_API_KEY: ${{ secrets.GOPHERHOLE_API_KEY }}
+        run: |
+          python3 -c "
+          import asyncio
+          import os
+          from gopherhole import GopherHole
+
+          HUB_URL = '${{ env.HUB_URL }}'
+          TARGET = '${{ env.TARGET_AGENT }}'
+          EXPECTED = '${{ env.EXPECTED_ACK }}'
+
+          async def main():
+              hub = GopherHole(
+                  api_key=os.environ['GOPHERHOLE_API_KEY'],
+                  hub_url=HUB_URL,
+                  transport='http',
+              )
+
+              # Test 1: discover
+              print('[py-sdk] Discovering agents...')
+              agents = await hub.discover_agents(query='sentry buddy', limit=5)
+              if not agents.get('agents'):
+                  raise Exception('discover returned no agents')
+              print(f'[py-sdk] Found {len(agents[\"agents\"])} agents')
+
+              # Test 2: send_text_and_wait (the polling pattern)
+              print('[py-sdk] Sending message with poll...')
+              task = await hub.send_text_and_wait(TARGET, 'ping', max_wait=30)
+              if task.status.state != 'completed':
+                  raise Exception(f'Task ended in state: {task.status.state}')
+
+              # Extract response text
+              text = ''
+              if task.artifacts:
+                  for a in task.artifacts:
+                      for p in a.parts:
+                          if hasattr(p, 'text') and p.text:
+                              text += p.text
+              if not text and task.history:
+                  last = task.history[-1]
+                  for p in last.parts:
+                      if hasattr(p, 'text') and p.text:
+                          text += p.text
+
+              if not text.startswith(EXPECTED):
+                  raise Exception(f'Unexpected response: {text[:100]}')
+              print(f'[py-sdk] Response OK: {text[:50]}')
+              print('[py-sdk] ALL CHECKS PASSED')
+
+          asyncio.run(main())
+          "
+
+  # ─── Go SDK ──────────────────────────────────────────────────────
+  sdk-go:
+    name: Go SDK (latest)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Create test module
+        run: |
+          mkdir -p /tmp/go-smoke && cd /tmp/go-smoke
+          cat > go.mod << 'GOMOD'
+          module smoke
+          go 1.22
+          require github.com/gopherhole/gopherhole-go v0.3.0
+          GOMOD
+          cat > main.go << 'GOFILE'
+          package main
+
+          import (
+            "context"
+            "fmt"
+            "os"
+            "strings"
+            "time"
+
+            gopherhole "github.com/gopherhole/gopherhole-go"
+          )
+
+          func main() {
+            apiKey := os.Getenv("GOPHERHOLE_API_KEY")
+            target := os.Getenv("TARGET_AGENT")
+            expected := os.Getenv("EXPECTED_ACK")
+
+            client := gopherhole.New(apiKey,
+              gopherhole.WithAPIURL("https://hub.gopherhole.ai"),
+              gopherhole.WithTransport("http"),
+            )
+
+            ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+            defer cancel()
+
+            // Test 1: Discover
+            fmt.Println("[go-sdk] Discovering agents...")
+            result, err := client.SearchAgents(ctx, "sentry buddy", nil)
+            if err != nil {
+              fmt.Fprintf(os.Stderr, "[go-sdk] FAILED: discover: %v\n", err)
+              os.Exit(1)
+            }
+            fmt.Printf("[go-sdk] Found %d agents\n", len(result.Agents))
+
+            // Test 2: SendTextAndWait (non-blocking + poll)
+            fmt.Println("[go-sdk] Sending message with poll...")
+            task, err := client.SendTextAndWait(ctx, target, "ping", nil, nil)
+            if err != nil {
+              fmt.Fprintf(os.Stderr, "[go-sdk] FAILED: send: %v\n", err)
+              os.Exit(1)
+            }
+            if task.Status.State != "completed" {
+              fmt.Fprintf(os.Stderr, "[go-sdk] FAILED: task state: %s\n", task.Status.State)
+              os.Exit(1)
+            }
+
+            // Extract response text from artifacts
+            var text string
+            for _, a := range task.Artifacts {
+              for _, p := range a.Parts {
+                if p.Text != "" {
+                  text += p.Text
+                }
+              }
+            }
+            if text == "" && len(task.History) > 0 {
+              last := task.History[len(task.History)-1]
+              for _, p := range last.Parts {
+                if p.Text != "" {
+                  text += p.Text
+                }
+              }
+            }
+
+            if !strings.HasPrefix(text, expected) {
+              fmt.Fprintf(os.Stderr, "[go-sdk] FAILED: unexpected response: %s\n", text[:min(len(text), 100)])
+              os.Exit(1)
+            }
+            fmt.Printf("[go-sdk] Response OK: %s\n", text[:min(len(text), 50)])
+            fmt.Println("[go-sdk] ALL CHECKS PASSED")
+          }
+
+          func min(a, b int) int {
+            if a < b { return a }
+            return b
+          }
+          GOFILE
+
+      - name: Run smoke test
+        env:
+          GOPHERHOLE_API_KEY: ${{ secrets.GOPHERHOLE_API_KEY }}
+          TARGET_AGENT: ${{ env.TARGET_AGENT }}
+          EXPECTED_ACK: ${{ env.EXPECTED_ACK }}
+        run: |
+          cd /tmp/go-smoke
+          go mod tidy
+          go run main.go
+
+  # ─── CLI ─────────────────────────────────────────────────────────
+  cli:
+    name: CLI (latest)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install CLI
+        run: npm install -g @gopherhole/cli@latest
+
+      - name: Run smoke test
+        env:
+          GOPHERHOLE_API_KEY: ${{ secrets.GOPHERHOLE_API_KEY }}
+        run: |
+          echo "[cli] Testing discover..."
+          OUTPUT=$(gopherhole discover --query "sentry buddy" --limit 5 --json 2>&1) || {
+            echo "[cli] FAILED: discover exit code $?"
+            echo "$OUTPUT"
+            exit 1
+          }
+          echo "[cli] Discover OK"
+
+          echo "[cli] Testing send..."
+          RESPONSE=$(gopherhole send ${{ env.TARGET_AGENT }} "ping" --json 2>&1) || {
+            echo "[cli] FAILED: send exit code $?"
+            echo "$RESPONSE"
+            exit 1
+          }
+          echo "[cli] Send response: $RESPONSE"
+
+          if echo "$RESPONSE" | grep -q "${{ env.EXPECTED_ACK }}"; then
+            echo "[cli] Response contains expected ack"
+          else
+            echo "[cli] FAILED: response doesn't contain expected ack"
+            exit 1
+          fi
+          echo "[cli] ALL CHECKS PASSED"
+
+  # ─── MCP Server ──────────────────────────────────────────────────
+  mcp-server:
+    name: MCP Server (latest)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install MCP server
+        run: npm install @gopherhole/mcp@latest
+
+      - name: Run smoke test
+        env:
+          GOPHERHOLE_API_KEY: ${{ secrets.GOPHERHOLE_API_KEY }}
+        run: |
+          # Start MCP server in background, communicate via stdin/stdout
+          node -e "
+          const { spawn } = require('child_process');
+          const path = require('path');
+
+          const mcpBin = path.join(process.cwd(), 'node_modules/.bin/gopherhole-mcp');
+
+          async function main() {
+            const proc = spawn('node', [require.resolve('@gopherhole/mcp')], {
+              env: { ...process.env, GOPHERHOLE_TRANSPORT: 'http' },
+              stdio: ['pipe', 'pipe', 'pipe'],
+            });
+
+            let stdout = '';
+            proc.stdout.on('data', d => { stdout += d.toString(); });
+            proc.stderr.on('data', d => { process.stderr.write(d); });
+
+            function send(msg) {
+              const json = JSON.stringify(msg);
+              const header = 'Content-Length: ' + Buffer.byteLength(json) + '\r\n\r\n';
+              proc.stdin.write(header + json);
+            }
+
+            function waitForResponse(timeout = 30000) {
+              return new Promise((resolve, reject) => {
+                const timer = setTimeout(() => reject(new Error('MCP response timeout')), timeout);
+                const check = setInterval(() => {
+                  const match = stdout.match(/Content-Length: (\d+)\r\n\r\n([\s\S]*)/);
+                  if (match) {
+                    const len = parseInt(match[1]);
+                    const body = match[2];
+                    if (body.length >= len) {
+                      clearInterval(check);
+                      clearTimeout(timer);
+                      stdout = body.slice(len);
+                      resolve(JSON.parse(body.slice(0, len)));
+                    }
+                  }
+                }, 100);
+              });
+            }
+
+            // Initialize
+            console.log('[mcp] Initializing...');
+            send({ jsonrpc: '2.0', method: 'initialize', params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'smoke-test', version: '1.0' } }, id: 1 });
+            const initResp = await waitForResponse();
+            if (initResp.error) throw new Error('Init failed: ' + initResp.error.message);
+            console.log('[mcp] Server:', initResp.result.serverInfo.name, initResp.result.serverInfo.version);
+
+            send({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} });
+
+            // List tools
+            console.log('[mcp] Listing tools...');
+            send({ jsonrpc: '2.0', method: 'tools/list', params: {}, id: 2 });
+            const toolsResp = await waitForResponse();
+            if (toolsResp.error) throw new Error('tools/list failed: ' + toolsResp.error.message);
+            const toolNames = toolsResp.result.tools.map(t => t.name);
+            console.log('[mcp] Tools:', toolNames.length, 'available');
+
+            if (!toolNames.includes('agent_message')) {
+              throw new Error('agent_message tool missing from MCP server');
+            }
+            if (!toolNames.includes('agent_discover')) {
+              throw new Error('agent_discover tool missing from MCP server');
+            }
+
+            // Call agent_discover
+            console.log('[mcp] Calling agent_discover...');
+            send({ jsonrpc: '2.0', method: 'tools/call', params: { name: 'agent_discover', arguments: { query: 'sentry buddy', limit: 5 } }, id: 3 });
+            const discoverResp = await waitForResponse();
+            if (discoverResp.error) throw new Error('discover failed: ' + discoverResp.error.message);
+            console.log('[mcp] Discover OK');
+
+            // Call agent_message
+            console.log('[mcp] Calling agent_message...');
+            send({ jsonrpc: '2.0', method: 'tools/call', params: { name: 'agent_message', arguments: { agent_id: '${TARGET_AGENT}', message: 'ping' } }, id: 4 });
+            const msgResp = await waitForResponse();
+            if (msgResp.error) throw new Error('message failed: ' + msgResp.error.message);
+
+            const content = msgResp.result.content;
+            const textContent = content.find(c => c.type === 'text');
+            if (!textContent || !textContent.text.includes('${EXPECTED_ACK}')) {
+              throw new Error('MCP response missing expected ack: ' + JSON.stringify(content).slice(0, 200));
+            }
+            console.log('[mcp] Message response OK');
+            console.log('[mcp] ALL CHECKS PASSED');
+
+            proc.kill();
+          }
+          main().catch(e => { console.error('[mcp] FAILED:', e.message); process.exit(1); });
+          "
+
+  # ─── Alert on failure ────────────────────────────────────────────
+  notify:
+    name: Alert on failure
+    runs-on: ubuntu-latest
+    needs: [sdk-typescript, sdk-python, sdk-go, cli, mcp-server]
+    if: failure()
+    steps:
+      - name: Send failure alert
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: |
+          FAILED_JOBS=""
+          if [ "${{ needs.sdk-typescript.result }}" = "failure" ]; then FAILED_JOBS="$FAILED_JOBS TypeScript-SDK"; fi
+          if [ "${{ needs.sdk-python.result }}" = "failure" ]; then FAILED_JOBS="$FAILED_JOBS Python-SDK"; fi
+          if [ "${{ needs.sdk-go.result }}" = "failure" ]; then FAILED_JOBS="$FAILED_JOBS Go-SDK"; fi
+          if [ "${{ needs.cli.result }}" = "failure" ]; then FAILED_JOBS="$FAILED_JOBS CLI"; fi
+          if [ "${{ needs.mcp-server.result }}" = "failure" ]; then FAILED_JOBS="$FAILED_JOBS MCP-Server"; fi
+
+          curl -s -X POST https://api.resend.com/emails \
+            -H "Authorization: Bearer $RESEND_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"from\": \"GopherHole CI <noreply@gopherhole.ai>\",
+              \"to\": \"helixdata@gmail.com\",
+              \"subject\": \"[Smoke Test] Client SDK failure:$FAILED_JOBS\",
+              \"text\": \"The following client smoke tests failed:\\n\\n$FAILED_JOBS\\n\\nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\\n\\nThese tests install the LATEST published versions of each SDK/CLI/MCP package and run real requests against production. A failure means users of the affected client are likely broken.\\n\\n— GopherHole CI\"
+            }"
