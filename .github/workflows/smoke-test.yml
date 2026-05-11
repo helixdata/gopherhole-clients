@@ -33,8 +33,10 @@ jobs:
           const { A2AClient, getTaskResponseText } = require('@gopherhole/sdk');
 
           async function main() {
+            const key = process.env.GOPHERHOLE_API_KEY || '';
+            console.log('[ts-sdk] Key length:', key.length, 'prefix:', key.slice(0, 4));
             const client = new A2AClient({
-              apiKey: process.env.GOPHERHOLE_API_KEY,
+              apiKey: key,
               baseUrl: '${HUB_URL}/a2a',
             });
 
