@@ -153,8 +153,6 @@ jobs:
   sdk-go:
     name: Go SDK (latest)
     runs-on: ubuntu-latest
-    # Go SDK repo is currently private — skip until public
-    if: false
     steps:
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -167,7 +165,7 @@ jobs:
           cat > go.mod << 'GOMOD'
           module smoke
           go 1.22
-          require github.com/gopherhole/gopherhole-go v0.3.0
+          require github.com/helixdata/gopherhole-go v0.3.0
           GOMOD
           cat > main.go << 'GOFILE'
           package main
@@ -179,7 +177,7 @@ jobs:
             "strings"
             "time"
 
-            gopherhole "github.com/gopherhole/gopherhole-go"
+            gopherhole "github.com/helixdata/gopherhole-go"
           )
 
           func main() {

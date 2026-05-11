@@ -1,4 +1,4 @@
-module github.com/helixdata/gopherhole-clients/packages/sdk-go // v0.3.0
+module github.com/helixdata/gopherhole-go // canonical: github.com/helixdata/gopherhole-go
 
 go 1.21
 
