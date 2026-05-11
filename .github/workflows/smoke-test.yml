@@ -214,24 +214,7 @@ jobs:
               os.Exit(1)
             }
 
-            // Extract response text from artifacts
-            var text string
-            for _, a := range task.Artifacts {
-              for _, p := range a.Parts {
-                if p.Text != "" {
-                  text += p.Text
-                }
-              }
-            }
-            if text == "" && len(task.History) > 0 {
-              last := task.History[len(task.History)-1]
-              for _, p := range last.Parts {
-                if p.Text != "" {
-                  text += p.Text
-                }
-              }
-            }
-
+            text := task.GetResponseText()
             if !strings.HasPrefix(text, expected) {
               fmt.Fprintf(os.Stderr, "[go-sdk] FAILED: unexpected response: %s\n", text[:min(len(text), 100)])
               os.Exit(1)
