@@ -377,7 +377,7 @@ jobs:
 
             // Call agent_message
             console.log('[mcp] Calling agent_message...');
-            send({ jsonrpc: '2.0', method: 'tools/call', params: { name: 'agent_message', arguments: { agent_id: '${TARGET_AGENT}', message: 'ping' } }, id: 4 });
+            send({ jsonrpc: '2.0', method: 'tools/call', params: { name: 'agent_message', arguments: { agentId: '${TARGET_AGENT}', message: 'ping' } }, id: 4 });
             const msgResp = await waitForResponse();
             if (msgResp.error) throw new Error('message failed: ' + msgResp.error.message);
 
