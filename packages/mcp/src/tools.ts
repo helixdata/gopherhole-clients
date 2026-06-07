@@ -314,6 +314,70 @@ OFFLINE: If the agent is offline, the message is queued automatically and delive
 ];
 
 /**
+ * Concierge Tools - Ask, Research, Find Agents
+ */
+export const CONCIERGE_TOOLS: Tool[] = [
+  {
+    name: 'agent_ask',
+    description: 'Ask any question — the Concierge automatically finds the best agent on GopherHole and returns the answer. No need to discover or pick an agent yourself. Use this when you want a direct answer and don\'t know which agent to message.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        question: {
+          type: 'string',
+          description: 'The question to ask (routed to the best matching agent automatically)',
+        },
+        maxCost: {
+          type: 'number',
+          description: 'Maximum cost in credits for downstream agents (default: 0 = free agents only)',
+        },
+        allowPaid: {
+          type: 'boolean',
+          description: 'Allow paid agents (default: false, free agents only)',
+        },
+      },
+      required: ['question'],
+    },
+  },
+  {
+    name: 'agent_research',
+    description: 'Research a complex question across multiple agents. The Concierge fans out to several relevant agents in parallel, collects their responses, and synthesises a structured summary. Use this for questions that span multiple domains (e.g., "Is Acme Corp a good investment?" queries SEC filings, patents, news, and congressional trades).',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        question: {
+          type: 'string',
+          description: 'The research question (sent to multiple relevant agents)',
+        },
+        maxCost: {
+          type: 'number',
+          description: 'Maximum cost in credits for downstream agents (default: 0 = free agents only)',
+        },
+        allowPaid: {
+          type: 'boolean',
+          description: 'Allow paid agents (default: false, free agents only)',
+        },
+      },
+      required: ['question'],
+    },
+  },
+  {
+    name: 'agent_find_agents',
+    description: 'Find agents matching a topic or capability using the Concierge\'s smart matching. Returns a curated list with descriptions. Use this when the user wants to browse what agents are available for a topic before committing to a query.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        query: {
+          type: 'string',
+          description: 'What kind of agents to find (e.g., "compliance", "patent research", "SEC filing tools")',
+        },
+      },
+      required: ['query'],
+    },
+  },
+];
+
+/**
  * Phase 3 Tools - Workspaces (Multi-Agent Collaboration)
  */
 export const WORKSPACE_TOOLS: Tool[] = [
@@ -486,6 +550,7 @@ export const WORKSPACE_TOOLS: Tool[] = [
 export const ALL_TOOLS: Tool[] = [
   ...MEMORY_TOOLS,
   ...EXTENDED_MEMORY_TOOLS,
+  ...CONCIERGE_TOOLS,
   ...AGENT_TOOLS,
   ...WORKSPACE_TOOLS,
   ...ADMIN_TOOLS,

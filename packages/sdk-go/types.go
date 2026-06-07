@@ -184,6 +184,8 @@ type SendOptions struct {
 	// TTL is the message time-to-live in seconds (GopherHole extension: x-ttl).
 	// 0 = fail immediately if offline (no queue). nil = use recipient default (30 days).
 	TTL *int `json:"-"` // Serialized manually as x-ttl
+	// Secrets to pass to the recipient agent via x-gopherhole-secrets header.
+	Secrets map[string]string `json:"-"` // Passed via x-gopherhole-secrets, not serialized directly
 }
 
 // DiscoverOptions contains options for discovering agents.

@@ -245,6 +245,17 @@ export interface SendAndWaitOptions extends SendOptions {
   maxWaitMs?: number;
 }
 
+export interface ConciergeOptions {
+  /** Maximum cost in credits to spend on downstream agents (default: 0 = free only) */
+  maxCost?: number;
+  /** Allow paid agents (default: false) */
+  allowPaid?: boolean;
+  /** Polling interval in ms (default: 1000) */
+  pollIntervalMs?: number;
+  /** Max wait time in ms (default: 120000 = 2 min) */
+  maxWaitMs?: number;
+}
+
 type EventMap = {
   connect: () => void;
   /** Emitted once the hub has authenticated the socket and returned the agent ID (welcome message). */
@@ -890,6 +901,65 @@ export class GopherHole extends EventEmitter<EventMap> {
    */
   get id(): string | null {
     return this.agentId;
+  }
+
+  // ============================================================
+  // CONCIERGE METHODS
+  // ============================================================
+
+  private static readonly CONCIERGE_ID = 'agent-concierge-official';
+
+  /**
+   * Ask a question — Concierge finds the best agent and returns the answer.
+   */
+  async ask(question: string, options?: ConciergeOptions): Promise<string> {
+    return this.callConcierge(question, 'route', options);
+  }
+
+  /**
+   * Research a complex question — Concierge fans out to multiple agents and synthesises a summary.
+   */
+  async research(question: string, options?: ConciergeOptions): Promise<string> {
+    return this.callConcierge(question, 'research', options);
+  }
+
+  /**
+   * Find agents matching a topic or capability via the Concierge.
+   */
+  async findAgents(query: string): Promise<string> {
+    return this.callConcierge(query, 'find');
+  }
+
+  private async callConcierge(
+    text: string,
+    mode: 'route' | 'research' | 'find',
+    options?: ConciergeOptions,
+  ): Promise<string> {
+    const pollInterval = options?.pollIntervalMs ?? 1000;
+    const maxWait = options?.maxWaitMs ?? 120_000;
+
+    const ghExt: Record<string, unknown> = { mode };
+    if (options?.maxCost !== undefined) ghExt.maxCost = options.maxCost;
+    if (options?.allowPaid !== undefined) ghExt.allowPaid = options.allowPaid;
+
+    const task = await this.rpc('message/send', {
+      message: { role: 'user', parts: [{ kind: 'text', text }] },
+      configuration: { agentId: GopherHole.CONCIERGE_ID },
+      'x-gopherhole': ghExt,
+    }) as Task;
+
+    if (task.status.state === 'completed' || task.status.state === 'failed') {
+      if (task.status.state === 'failed') {
+        throw new Error(task.status.message || 'Concierge request failed');
+      }
+      return getTaskResponseText(task);
+    }
+
+    const completed = await this.waitForTask(task.id, { pollIntervalMs: pollInterval, maxWaitMs: maxWait });
+    if (completed.status.state === 'failed') {
+      throw new Error(completed.status.message || 'Concierge request failed');
+    }
+    return getTaskResponseText(completed);
   }
 
   // ============================================================

@@ -77,6 +77,8 @@ export interface SendMessageConfig {
   taskId?: string;
   historyLength?: number;
   blocking?: boolean;
+  'x-gopherhole-secrets'?: Record<string, string>;
+  'x-ttl'?: number;
 }
 
 export interface PushNotificationConfig {

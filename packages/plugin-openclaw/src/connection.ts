@@ -236,9 +236,9 @@ export class A2AConnectionManager {
   async sendMessage(
     targetAgentId: string,
     text: string,
-    _contextId?: string
+    opts?: { contextId?: string; secrets?: Record<string, string> }
   ): Promise<A2AResponse> {
-    return this.sendPartsViaGopherHole(targetAgentId, [{ kind: 'text', text }]);
+    return this.sendPartsViaGopherHole(targetAgentId, [{ kind: 'text', text }], opts?.contextId, opts?.secrets);
   }
 
   /**
@@ -248,7 +248,8 @@ export class A2AConnectionManager {
   async sendPartsViaGopherHole(
     targetAgentId: string,
     parts: Array<{ kind: string; text?: string; data?: string; mimeType?: string }>,
-    contextId?: string
+    contextId?: string,
+    secrets?: Record<string, string>
   ): Promise<A2AResponse> {
     if (!this.gopherhole || !this.connected) {
       throw new Error('GopherHole not connected');
@@ -269,7 +270,7 @@ export class A2AConnectionManager {
             mimeType: p.mimeType,
           })),
         },
-        { contextId }
+        { contextId, secrets }
       );
 
       // Wait for task completion

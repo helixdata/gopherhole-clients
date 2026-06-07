@@ -681,6 +681,82 @@ async function main() {
         }
 
         // ============================================================
+        // CONCIERGE TOOLS
+        // ============================================================
+
+        case 'agent_ask': {
+          const question = args?.question as string;
+          if (!question) {
+            return {
+              content: [{ type: 'text', text: 'Error: question is required' }],
+              isError: true,
+            };
+          }
+
+          try {
+            const answer = await gopherhole.ask(question, {
+              maxCost: args?.maxCost as number | undefined,
+              allowPaid: args?.allowPaid as boolean | undefined,
+            });
+            return {
+              content: [{ type: 'text', text: answer || 'No response from Concierge' }],
+            };
+          } catch (err) {
+            return {
+              content: [{ type: 'text', text: `Concierge error: ${(err as Error).message}` }],
+              isError: true,
+            };
+          }
+        }
+
+        case 'agent_research': {
+          const question = args?.question as string;
+          if (!question) {
+            return {
+              content: [{ type: 'text', text: 'Error: question is required' }],
+              isError: true,
+            };
+          }
+
+          try {
+            const summary = await gopherhole.research(question, {
+              maxCost: args?.maxCost as number | undefined,
+              allowPaid: args?.allowPaid as boolean | undefined,
+            });
+            return {
+              content: [{ type: 'text', text: summary || 'No research results' }],
+            };
+          } catch (err) {
+            return {
+              content: [{ type: 'text', text: `Research error: ${(err as Error).message}` }],
+              isError: true,
+            };
+          }
+        }
+
+        case 'agent_find_agents': {
+          const query = args?.query as string;
+          if (!query) {
+            return {
+              content: [{ type: 'text', text: 'Error: query is required' }],
+              isError: true,
+            };
+          }
+
+          try {
+            const agents = await gopherhole.findAgents(query);
+            return {
+              content: [{ type: 'text', text: agents || 'No agents found' }],
+            };
+          } catch (err) {
+            return {
+              content: [{ type: 'text', text: `Find agents error: ${(err as Error).message}` }],
+              isError: true,
+            };
+          }
+        }
+
+        // ============================================================
         // WORKSPACE TOOLS
         // ============================================================
 

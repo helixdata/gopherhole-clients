@@ -474,6 +474,8 @@ class GopherHole:
             # Map friendly 'ttl' to GopherHole extension field 'x-ttl'
             if options.ttl is not None:
                 params["configuration"]["x-ttl"] = options.ttl
+            if options.secrets:
+                params["configuration"]["x-gopherhole-secrets"] = options.secrets
         
         result = await self._rpc("SendMessage", params)
         return Task(**result)
@@ -1058,6 +1060,124 @@ class GopherHole:
         )
         response.raise_for_status()
         return response.json()
+
+    # ============================================================
+    # CONCIERGE METHODS
+    # ============================================================
+
+    _CONCIERGE_ID = "agent-concierge-official"
+
+    async def ask(
+        self,
+        question: str,
+        *,
+        max_cost: Optional[float] = None,
+        allow_paid: bool = False,
+        poll_interval: float = 1.0,
+        max_wait: float = 120.0,
+    ) -> str:
+        """
+        Ask a question — Concierge finds the best agent and returns the answer.
+
+        Args:
+            question: The question to ask.
+            max_cost: Maximum cost in credits for downstream agents (default: 0 = free only).
+            allow_paid: Allow paid agents (default: False).
+            poll_interval: Seconds between polls (default: 1.0).
+            max_wait: Maximum wait time in seconds (default: 120).
+
+        Returns:
+            The answer text from the best-matching agent.
+        """
+        return await self._call_concierge(
+            question, "route", max_cost=max_cost, allow_paid=allow_paid,
+            poll_interval=poll_interval, max_wait=max_wait,
+        )
+
+    async def research(
+        self,
+        question: str,
+        *,
+        max_cost: Optional[float] = None,
+        allow_paid: bool = False,
+        poll_interval: float = 1.0,
+        max_wait: float = 120.0,
+    ) -> str:
+        """
+        Research a complex question — Concierge fans out to multiple agents
+        and synthesises a summary.
+
+        Args:
+            question: The research question.
+            max_cost: Maximum cost in credits for downstream agents (default: 0 = free only).
+            allow_paid: Allow paid agents (default: False).
+            poll_interval: Seconds between polls (default: 1.0).
+            max_wait: Maximum wait time in seconds (default: 120).
+
+        Returns:
+            A synthesised summary from multiple agents.
+        """
+        return await self._call_concierge(
+            question, "research", max_cost=max_cost, allow_paid=allow_paid,
+            poll_interval=poll_interval, max_wait=max_wait,
+        )
+
+    async def find_agents(
+        self,
+        query: str,
+        *,
+        poll_interval: float = 1.0,
+        max_wait: float = 120.0,
+    ) -> str:
+        """
+        Find agents matching a topic or capability via the Concierge.
+
+        Args:
+            query: What kind of agents to find.
+            poll_interval: Seconds between polls (default: 1.0).
+            max_wait: Maximum wait time in seconds (default: 120).
+
+        Returns:
+            A text listing of matching agents.
+        """
+        return await self._call_concierge(
+            query, "find", poll_interval=poll_interval, max_wait=max_wait,
+        )
+
+    async def _call_concierge(
+        self,
+        text: str,
+        mode: str,
+        *,
+        max_cost: Optional[float] = None,
+        allow_paid: bool = False,
+        poll_interval: float = 1.0,
+        max_wait: float = 120.0,
+    ) -> str:
+        gh_ext: dict[str, Any] = {"mode": mode}
+        if max_cost is not None:
+            gh_ext["maxCost"] = max_cost
+        if allow_paid:
+            gh_ext["allowPaid"] = allow_paid
+
+        params: dict[str, Any] = {
+            "message": {"role": "user", "parts": [{"kind": "text", "text": text}]},
+            "configuration": {"agentId": self._CONCIERGE_ID},
+            "x-gopherhole": gh_ext,
+        }
+
+        result = await self._rpc("SendMessage", params)
+        task = Task(**result)
+
+        if task.status.state.value in ("completed", "failed"):
+            if task.status.state.value == "failed":
+                raise Exception(task.status.message or "Concierge request failed")
+            return task.get_response_text()
+
+        completed = await self.wait_for_task(task.id, poll_interval, max_wait)
+        if completed.status.state.value == "failed":
+            raise Exception(completed.status.message or "Concierge request failed")
+        return completed.get_response_text()
 
     # ============================================================
     # WORKSPACE METHODS (GopherHole Extension)

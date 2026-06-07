@@ -418,6 +418,9 @@ func (c *Client) Send(ctx context.Context, toAgentID string, payload MessagePayl
 		if opts.TTL != nil {
 			config["x-ttl"] = *opts.TTL
 		}
+		if opts.Secrets != nil && len(opts.Secrets) > 0 {
+			config["x-gopherhole-secrets"] = opts.Secrets
+		}
 	}
 
 	var task Task

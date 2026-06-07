@@ -9,6 +9,8 @@ function normalizeAccountId(id?: string): string {
   return id?.trim()?.toLowerCase() || DEFAULT_ACCOUNT_ID;
 }
 
+import { existsSync, readFileSync } from 'fs';
+import { join } from 'path';
 import { A2AConnectionManager } from './connection.js';
 import { sendChatMessage, connectToGateway, disconnectFromGateway } from './gateway-client.js';
 import { a2aLog } from './logger.js';
@@ -85,6 +87,24 @@ type ChannelPlugin<T = any> = {
     }) => Promise<(() => Promise<void>) | void>;
   };
 };
+
+function loadAgentSecrets(agentId: string): Record<string, string> | null {
+  const secretsDir = join(process.cwd(), '.gopherhole', 'secrets');
+  const filePath = join(secretsDir, `${agentId}.json`);
+  if (!existsSync(filePath)) return null;
+  try {
+    const raw = readFileSync(filePath, 'utf-8');
+    const parsed = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null) return null;
+    const secrets: Record<string, string> = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      if (typeof v === 'string') secrets[k] = v;
+    }
+    return Object.keys(secrets).length > 0 ? secrets : null;
+  } catch {
+    return null;
+  }
+}
 
 function resolveA2AConfig(cfg: OpenClawConfig): A2AChannelConfig {
   return cfg?.channels?.a2a ?? {};
@@ -223,7 +243,8 @@ export const a2aPlugin: ChannelPlugin<ResolvedA2AAccount> = {
         return { channel: 'a2a', success: false, error: 'A2A not connected' };
       }
       try {
-        const response = await connectionManager.sendMessage(to, text);
+        const secrets = loadAgentSecrets(to) ?? undefined;
+        const response = await connectionManager.sendMessage(to, text, secrets ? { secrets } : undefined);
         return {
           channel: 'a2a',
           success: true,

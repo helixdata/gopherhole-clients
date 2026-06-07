@@ -206,6 +206,11 @@ class SendOptions(BaseModel):
         ),
         exclude=True,  # Serialized manually as x-ttl in client.send()
     )
+    secrets: Optional[dict[str, str]] = Field(
+        None,
+        description="Secrets to attach to this message (passed to receiving agent via x-gopherhole envelope).",
+        exclude=True,
+    )
 
     class Config:
         populate_by_name = True

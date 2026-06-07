@@ -4,6 +4,8 @@
  * Uses @gopherhole/sdk for GopherHole hub connectivity
  */
 
+import { existsSync, readFileSync } from 'fs';
+import { join } from 'path';
 import WebSocket from 'ws';
 import { v4 as uuidv4 } from 'uuid';
 import pino from 'pino';
@@ -27,7 +29,23 @@ function mimeToExtension(mimeType: string): string {
   };
   return map[mimeType] || '';
 }
-// Note: Message handler must be set via setMessageHandler() after initialization
+function loadAgentSecrets(agentId: string): Record<string, string> | null {
+  const secretsDir = join(process.cwd(), '.gopherhole', 'secrets');
+  const filePath = join(secretsDir, `${agentId}.json`);
+  if (!existsSync(filePath)) return null;
+  try {
+    const raw = readFileSync(filePath, 'utf-8');
+    const parsed = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null) return null;
+    const secrets: Record<string, string> = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      if (typeof v === 'string') secrets[k] = v;
+    }
+    return Object.keys(secrets).length > 0 ? secrets : null;
+  } catch {
+    return null;
+  }
+}
 
 const logger = pino({ name: 'a2a-channel' });
 
@@ -769,12 +787,12 @@ export class A2AChannel implements Channel {
   /**
    * Send a message to a remote agent via GopherHole SDK
    */
-  async sendViaGopherHole(targetAgentId: string, text: string, contextId?: string): Promise<AgentResponse> {
+  async sendViaGopherHole(targetAgentId: string, text: string, contextId?: string, secrets?: Record<string, string>): Promise<AgentResponse> {
     if (!this.gopherholeClient?.connected) {
       throw new Error('GopherHole not connected');
     }
 
-    const task = await this.gopherholeClient.sendText(targetAgentId, text, { contextId });
+    const task = await this.gopherholeClient.sendText(targetAgentId, text, { contextId, secrets });
     logger.debug({ taskId: task.id, targetAgentId, status: task.status.state }, 'Sent message via GopherHole');
     
     // If task already completed (synchronous response)
@@ -809,7 +827,8 @@ export class A2AChannel implements Channel {
     if (userId.includes('@') || this.gopherholeClient?.connected) {
       // userId might be an agent ID for GopherHole
       try {
-        await this.gopherholeClient?.sendText(userId, response.text);
+        const secrets = loadAgentSecrets(userId) ?? undefined;
+        await this.gopherholeClient?.sendText(userId, response.text, { secrets });
         return;
       } catch (err) {
         logger.warn({ error: (err as Error).message }, 'Failed to send via GopherHole, trying direct');
