@@ -26,6 +26,74 @@ export interface AgentCapabilities {
   streaming?: boolean;
   pushNotifications?: boolean;
   stateTransitionHistory?: boolean;
+  /** A2A spec §4.4 — declared extensions */
+  extensions?: AgentExtension[];
+}
+
+/**
+ * A2A Extension declaration (spec §4.4).
+ * Identified by URI. `params` is extension-owned config.
+ */
+export interface AgentExtension {
+  uri: string;
+  required?: boolean;
+  description?: string;
+  params?: Record<string, unknown>;
+}
+
+// ============ GopherHole UI Extension Types (https://gopherhole.ai/ext/ui/v1) ============
+
+export type UIViewType = 'board' | 'table' | 'stats' | 'list';
+
+export type UIFieldType = 'text' | 'textarea' | 'date' | 'datetime' | 'select' | 'number' | 'checkbox';
+
+export type UIColumnType = 'text' | 'date' | 'priority' | 'badge' | 'link';
+
+export interface UIFieldOption {
+  value: string;
+  label: string;
+}
+
+export interface UIField {
+  id: string;
+  label: string;
+  type: UIFieldType;
+  required?: boolean;
+  placeholder?: string;
+  options?: UIFieldOption[];   // for type 'select'
+  default?: string | number | boolean;
+}
+
+export interface UIAction {
+  id: string;
+  label: string;
+  icon?: string;               // lucide icon name
+  skill: string;               // A2A skill id to invoke
+  fields: UIField[];           // empty = no form, invoke immediately
+  destructive?: boolean;
+}
+
+export interface UIColumn {
+  id: string;
+  label: string;
+  type?: UIColumnType;
+}
+
+export interface UIView {
+  id: string;
+  name: string;
+  type: UIViewType;
+  default?: boolean;
+  skill: string;               // A2A skill id that returns the data
+  skillParams?: Record<string, unknown>;
+  actions?: UIAction[];
+  columns?: UIColumn[];        // for type 'table'
+  refreshInterval?: number;    // seconds, 0 = manual only
+}
+
+/** Params block for the https://gopherhole.ai/ext/ui/v1 extension */
+export interface AgentUIExtensionParams {
+  views: UIView[];
 }
 
 export interface AgentAuthentication {
