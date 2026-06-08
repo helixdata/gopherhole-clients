@@ -45,7 +45,7 @@ export interface AgentExtension {
 
 export type UIViewType = 'board' | 'table' | 'stats' | 'list';
 
-export type UIFieldType = 'text' | 'textarea' | 'date' | 'datetime' | 'select' | 'number' | 'checkbox';
+export type UIFieldType = 'text' | 'textarea' | 'date' | 'datetime' | 'select' | 'number' | 'checkbox' | 'hidden';
 
 export type UIColumnType = 'text' | 'date' | 'priority' | 'badge' | 'link';
 
@@ -95,6 +95,9 @@ export interface UIView {
 export interface AgentUIExtensionParams {
   views: UIView[];
 }
+
+/** @alias AgentUIExtensionParams — shorter alias used in dashboard */
+export type UIExtensionParams = AgentUIExtensionParams;
 
 export interface AgentAuthentication {
   schemes: string[];

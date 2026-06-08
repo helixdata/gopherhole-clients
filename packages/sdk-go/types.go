@@ -213,9 +213,112 @@ type AgentSkill struct {
 
 // AgentCapabilities represents what an agent can do.
 type AgentCapabilities struct {
-	Streaming              bool `json:"streaming,omitempty"`
-	PushNotifications      bool `json:"pushNotifications,omitempty"`
-	StateTransitionHistory bool `json:"stateTransitionHistory,omitempty"`
+	Streaming              bool             `json:"streaming,omitempty"`
+	PushNotifications      bool             `json:"pushNotifications,omitempty"`
+	StateTransitionHistory bool             `json:"stateTransitionHistory,omitempty"`
+	Extensions             []AgentExtension `json:"extensions,omitempty"`
+}
+
+// AgentExtension declares an A2A extension (spec §4.4). Identified by URI.
+type AgentExtension struct {
+	URI         string                 `json:"uri"`
+	Required    bool                   `json:"required,omitempty"`
+	Description string                 `json:"description,omitempty"`
+	Params      map[string]interface{} `json:"params,omitempty"`
+}
+
+// ============================================================
+// UI EXTENSION TYPES (https://gopherhole.ai/ext/ui/v1)
+// ============================================================
+
+// UIExtensionURI is the canonical URI for the GopherHole UI extension.
+const UIExtensionURI = "https://gopherhole.ai/ext/ui/v1"
+
+// UIViewType is the rendering mode for a UI view.
+type UIViewType string
+
+const (
+	UIViewTypeBoard UIViewType = "board"
+	UIViewTypeTable UIViewType = "table"
+	UIViewTypeStats UIViewType = "stats"
+	UIViewTypeList  UIViewType = "list"
+)
+
+// UIFieldType is the input type for a UI action field.
+type UIFieldType string
+
+const (
+	UIFieldTypeText     UIFieldType = "text"
+	UIFieldTypeTextarea UIFieldType = "textarea"
+	UIFieldTypeDate     UIFieldType = "date"
+	UIFieldTypeDatetime UIFieldType = "datetime"
+	UIFieldTypeSelect   UIFieldType = "select"
+	UIFieldTypeNumber   UIFieldType = "number"
+	UIFieldTypeCheckbox UIFieldType = "checkbox"
+	UIFieldTypeHidden   UIFieldType = "hidden"
+)
+
+// UIColumnType is the display type for a table column.
+type UIColumnType string
+
+const (
+	UIColumnTypeText     UIColumnType = "text"
+	UIColumnTypeDate     UIColumnType = "date"
+	UIColumnTypePriority UIColumnType = "priority"
+	UIColumnTypeBadge    UIColumnType = "badge"
+	UIColumnTypeLink     UIColumnType = "link"
+)
+
+// UIFieldOption is a selectable option within a select field.
+type UIFieldOption struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
+}
+
+// UIField is a form field for a UI action.
+type UIField struct {
+	ID          string          `json:"id"`
+	Label       string          `json:"label"`
+	Type        UIFieldType     `json:"type"`
+	Required    bool            `json:"required,omitempty"`
+	Placeholder string          `json:"placeholder,omitempty"`
+	Options     []UIFieldOption `json:"options,omitempty"` // for type 'select'
+	Default     interface{}     `json:"default,omitempty"`
+}
+
+// UIAction is an action that can be triggered from the UI.
+type UIAction struct {
+	ID          string    `json:"id"`
+	Label       string    `json:"label"`
+	Icon        string    `json:"icon,omitempty"`   // lucide icon name
+	Skill       string    `json:"skill"`            // A2A skill id to invoke
+	Fields      []UIField `json:"fields"`           // empty = no form, invoke immediately
+	Destructive bool      `json:"destructive,omitempty"`
+}
+
+// UIColumn is a column definition for table views.
+type UIColumn struct {
+	ID    string       `json:"id"`
+	Label string       `json:"label"`
+	Type  UIColumnType `json:"type,omitempty"`
+}
+
+// UIView is a view within a UI extension.
+type UIView struct {
+	ID              string                 `json:"id"`
+	Name            string                 `json:"name"`
+	Type            UIViewType             `json:"type"`
+	Default         bool                   `json:"default,omitempty"`
+	Skill           string                 `json:"skill"`           // A2A skill id that returns the data
+	SkillParams     map[string]interface{} `json:"skillParams,omitempty"`
+	Actions         []UIAction             `json:"actions,omitempty"`
+	Columns         []UIColumn             `json:"columns,omitempty"` // for type 'table'
+	RefreshInterval int                    `json:"refreshInterval,omitempty"` // seconds
+}
+
+// UIExtensionParams is the params block for the https://gopherhole.ai/ext/ui/v1 extension.
+type UIExtensionParams struct {
+	Views []UIView `json:"views"`
 }
 
 // AgentProvider represents the organization providing an agent.

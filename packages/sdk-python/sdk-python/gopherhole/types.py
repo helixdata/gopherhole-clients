@@ -265,6 +265,96 @@ class AgentCapabilities(BaseModel):
         populate_by_name = True
 
 
+class AgentExtension(BaseModel):
+    """A2A Extension declaration (spec §4.4). Identified by URI."""
+
+    uri: str
+    required: Optional[bool] = None
+    description: Optional[str] = None
+    params: Optional[dict[str, Any]] = None
+
+
+class AgentCapabilitiesWithExtensions(AgentCapabilities):
+    """AgentCapabilities with A2A extension support."""
+
+    extensions: Optional[list[AgentExtension]] = None
+
+    class Config:
+        populate_by_name = True
+
+
+# ============================================================
+# UI EXTENSION TYPES (https://gopherhole.ai/ext/ui/v1)
+# ============================================================
+
+UI_EXTENSION_URI = "https://gopherhole.ai/ext/ui/v1"
+
+UIViewType = Literal["board", "table", "stats", "list"]
+UIFieldType = Literal["text", "textarea", "date", "datetime", "select", "number", "checkbox", "hidden"]
+UIColumnType = Literal["text", "date", "priority", "badge", "link"]
+
+
+class UIFieldOption(BaseModel):
+    """An option for a select field."""
+
+    value: str
+    label: str
+
+
+class UIField(BaseModel):
+    """A form field for a UI action."""
+
+    id: str
+    label: str
+    type: UIFieldType
+    required: Optional[bool] = None
+    placeholder: Optional[str] = None
+    options: Optional[list[UIFieldOption]] = None  # for type 'select'
+    default: Optional[Any] = None
+
+
+class UIAction(BaseModel):
+    """An action that can be triggered from the UI."""
+
+    id: str
+    label: str
+    icon: Optional[str] = None          # lucide icon name
+    skill: str                           # A2A skill id to invoke
+    fields: list[UIField] = []           # empty = no form, invoke immediately
+    destructive: Optional[bool] = None
+
+
+class UIColumn(BaseModel):
+    """A column definition for table views."""
+
+    id: str
+    label: str
+    type: Optional[UIColumnType] = None
+
+
+class UIView(BaseModel):
+    """A view within a UI extension."""
+
+    id: str
+    name: str
+    type: UIViewType
+    default: Optional[bool] = None
+    skill: str                           # A2A skill id that returns the data
+    skill_params: Optional[dict[str, Any]] = Field(None, alias="skillParams")
+    actions: Optional[list[UIAction]] = None
+    columns: Optional[list[UIColumn]] = None  # for type 'table'
+    refresh_interval: Optional[int] = Field(None, alias="refreshInterval")  # seconds
+
+    class Config:
+        populate_by_name = True
+
+
+class UIExtensionParams(BaseModel):
+    """Params block for the https://gopherhole.ai/ext/ui/v1 extension."""
+
+    views: list[UIView]
+
+
 class AgentProvider(BaseModel):
     """Agent provider info."""
     

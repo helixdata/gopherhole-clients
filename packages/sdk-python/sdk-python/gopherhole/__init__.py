@@ -15,9 +15,20 @@ from gopherhole.types import (
     Artifact,
     SendOptions,
     get_task_response_text,
+    # A2A extension types
+    AgentExtension,
+    AgentCapabilitiesWithExtensions,
+    # UI extension types
+    UI_EXTENSION_URI,
+    UIExtensionParams,
+    UIView,
+    UIAction,
+    UIField,
+    UIFieldOption,
+    UIColumn,
 )
 
-__version__ = "0.1.1"
+__version__ = "0.8.0"
 __all__ = [
     "GopherHole",
     "TransportMode",
@@ -33,4 +44,15 @@ __all__ = [
     "Artifact",
     "SendOptions",
     "get_task_response_text",
+    # A2A extension types
+    "AgentExtension",
+    "AgentCapabilitiesWithExtensions",
+    # UI extension types
+    "UI_EXTENSION_URI",
+    "UIExtensionParams",
+    "UIView",
+    "UIAction",
+    "UIField",
+    "UIFieldOption",
+    "UIColumn",
 ]
