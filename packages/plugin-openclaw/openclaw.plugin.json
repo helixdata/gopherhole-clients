@@ -10,5 +10,119 @@
         "description": "Enable the plugin"
       }
     }
+  },
+  "channelConfigs": {
+    "a2a": {
+      "label": "A2A (GopherHole)",
+      "description": "Agent-to-agent communication over the GopherHole hub. Lets other AI agents discover and message this OpenClaw instance.",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "Enable the A2A channel"
+          },
+          "apiKey": {
+            "type": "string",
+            "description": "GopherHole API key (starts with gph_)"
+          },
+          "bridgeUrl": {
+            "type": "string",
+            "format": "uri",
+            "default": "wss://hub.gopherhole.ai/ws",
+            "description": "WebSocket URL for the GopherHole hub"
+          },
+          "agentId": {
+            "type": "string",
+            "description": "Canonical hub-side agent ID (e.g. agent-9a2fb7a8). Assigned by the hub; look it up via the GopherHole admin dashboard."
+          },
+          "agentName": {
+            "type": "string",
+            "description": "Display name for this agent; used to build the default agent card when agentCard is not provided."
+          },
+          "agentCard": {
+            "type": "object",
+            "description": "Override the default agent card sent to the hub on connect.",
+            "properties": {
+              "name": { "type": "string" },
+              "description": { "type": "string" },
+              "url": { "type": "string", "format": "uri" },
+              "version": { "type": "string" },
+              "skills": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "name": { "type": "string" },
+                    "description": { "type": "string" },
+                    "tags": { "type": "array", "items": { "type": "string" } },
+                    "examples": { "type": "array", "items": { "type": "string" } },
+                    "inputModes": { "type": "array", "items": { "type": "string" } },
+                    "outputModes": { "type": "array", "items": { "type": "string" } }
+                  },
+                  "required": ["id", "name"]
+                }
+              }
+            }
+          },
+          "reconnectIntervalMs": {
+            "type": "integer",
+            "minimum": 100,
+            "default": 5000,
+            "description": "Initial reconnect delay in milliseconds. The SDK backs off exponentially up to a 5-minute cap."
+          },
+          "requestTimeoutMs": {
+            "type": "integer",
+            "minimum": 1000,
+            "default": 180000,
+            "description": "Timeout in milliseconds for outbound requests and inbound message-response waits."
+          }
+        }
+      },
+      "uiHints": {
+        "": {
+          "label": "A2A (GopherHole)",
+          "help": "Connect this OpenClaw instance to the GopherHole hub so other AI agents can discover and message it. Get an API key at https://gopherhole.ai."
+        },
+        "apiKey": {
+          "label": "API Key",
+          "help": "Your GopherHole API key (starts with gph_). Create one at https://gopherhole.ai settings.",
+          "sensitive": true,
+          "placeholder": "gph_..."
+        },
+        "bridgeUrl": {
+          "label": "Bridge URL",
+          "help": "WebSocket endpoint of the GopherHole hub. Only override for self-hosted deployments.",
+          "advanced": true,
+          "placeholder": "wss://hub.gopherhole.ai/ws"
+        },
+        "agentId": {
+          "label": "Agent ID",
+          "help": "Hub-assigned agent ID. Find it in your GopherHole admin dashboard.",
+          "advanced": true,
+          "placeholder": "agent-xxxxxxxx"
+        },
+        "agentName": {
+          "label": "Display Name",
+          "help": "Human-readable name shown in agent cards and discovery listings."
+        },
+        "agentCard": {
+          "label": "Agent Card",
+          "help": "Advanced: fully override the agent card metadata (name, description, version, skills) registered with the hub on connect.",
+          "advanced": true
+        },
+        "reconnectIntervalMs": {
+          "label": "Reconnect Interval (ms)",
+          "advanced": true
+        },
+        "requestTimeoutMs": {
+          "label": "Request Timeout (ms)",
+          "advanced": true
+        }
+      }
+    }
   }
 }

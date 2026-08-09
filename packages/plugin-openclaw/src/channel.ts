@@ -303,10 +303,17 @@ export const a2aPlugin: ChannelPlugin<ResolvedA2AAccount> = {
       ctx.log?.info(`[a2a] Starting A2A channel`);
       ctx.setStatus({ accountId: account.accountId });
 
-      connectionManager = new A2AConnectionManager(config);
+      const localConnection = new A2AConnectionManager(config);
+      // Defensive: prior plugin versions leaked a connection on every
+      // supervisor auto-restart. If a stale manager is still around, stop it
+      // before overwriting the module-level singleton.
+      if (connectionManager && connectionManager !== localConnection) {
+        try { await connectionManager.stop(); } catch { /* ignore */ }
+      }
+      connectionManager = localConnection;
 
       // Set up message handler for incoming messages
-      connectionManager.setMessageHandler(async (agentId: string, message: A2AMessage) => {
+      localConnection.setMessageHandler(async (agentId: string, message: A2AMessage) => {
         if (message.type === 'message' && message.from) {
           const text = message.content?.parts
             ?.filter((p) => p.kind === 'text')
@@ -373,7 +380,7 @@ export const a2aPlugin: ChannelPlugin<ResolvedA2AAccount> = {
         }
       });
 
-      await connectionManager.start();
+      await localConnection.start();
 
       ctx.setStatus({
         accountId: account.accountId,
@@ -383,17 +390,33 @@ export const a2aPlugin: ChannelPlugin<ResolvedA2AAccount> = {
 
       ctx.log?.info(`[a2a] A2A channel started`);
 
-      // Return cleanup function
-      return async () => {
+      // OpenClaw's channel supervisor treats resolution of this promise as
+      // "channel exited" and immediately schedules an auto-restart. Hold the
+      // channel open for its lifetime by blocking on the abort signal — the
+      // supervisor aborts it only when it actually wants us to stop.
+      try {
+        await new Promise<void>((resolve) => {
+          const signal = ctx.abortSignal;
+          if (!signal) return; // no signal provided: never resolve
+          if (signal.aborted) { resolve(); return; }
+          signal.addEventListener('abort', () => resolve(), { once: true });
+        });
+      } finally {
         ctx.log?.info(`[a2a] Stopping A2A channel`);
-        await connectionManager?.stop();
-        connectionManager = null;
+        try {
+          await localConnection.stop();
+        } catch (err) {
+          ctx.log?.error?.(`[a2a] Error during stop: ${(err as Error).message}`);
+        }
+        if (connectionManager === localConnection) {
+          connectionManager = null;
+        }
         ctx.setStatus({
           accountId: account.accountId,
           running: false,
           lastStopAt: Date.now(),
         });
-      };
+      }
     },
   },
 };
