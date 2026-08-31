@@ -1,6 +1,6 @@
 /**
  * Gateway WebSocket Client
- * Sends messages to the Clawdbot gateway via its WebSocket protocol
+ * Sends messages to the OpenClaw gateway via its WebSocket protocol
  * 
  * chat.send is non-blocking - it returns a runId immediately and
  * streams the response via chat events. We accumulate deltas and
@@ -31,6 +31,11 @@ let pendingRequests: Map<string, PendingRequest> = new Map();
 let pendingChats: Map<string, PendingChat> = new Map(); // keyed by runId
 let connected = false;
 let handshakeComplete = false;
+
+// OpenClaw 2026.7+ requires gateway protocol v4. Keep this explicit so a
+// protocol bump fails a focused compatibility test instead of silently
+// breaking inbound A2A replies at runtime.
+export const GATEWAY_PROTOCOL_VERSION = 4;
 
 function getGatewayToken(): string | null {
   // Try the current OpenClaw config location first, then the legacy
@@ -76,12 +81,12 @@ export async function connectToGateway(port = 18789): Promise<void> {
         id: connectId,
         method: 'connect',
         params: {
-          minProtocol: 3,
-          maxProtocol: 3,
+          minProtocol: GATEWAY_PROTOCOL_VERSION,
+          maxProtocol: GATEWAY_PROTOCOL_VERSION,
           client: {
             id: 'gateway-client',
             displayName: 'A2A Channel Plugin',
-            version: '0.3.4',
+            version: '0.4.7',
             platform: process.platform,
             mode: 'backend',
           },
