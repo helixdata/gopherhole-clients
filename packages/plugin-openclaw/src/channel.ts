@@ -340,7 +340,20 @@ export const a2aPlugin: ChannelPlugin<ResolvedA2AAccount> = {
             // Add A2A context so the agent knows to relay its full response
             const a2aContext = `[A2A Request from agent "${message.from}"]\n\n${text}\n\n[Note: Your complete response will be sent back to the requesting agent. Include all relevant information in your reply.]`;
             
-            const response = await sendChatMessage(sessionKey, a2aContext);
+            // A2A status updates are task-level keepalives. Publish one now and
+            // periodically while OpenClaw is working so callers do not mistake
+            // a long tool run for a dead connection.
+            connectionManager?.sendTaskStatusViaGopherHole(message.taskId, 'OpenClaw is working');
+            const keepalive = setInterval(() => {
+              connectionManager?.sendTaskStatusViaGopherHole(message.taskId, 'OpenClaw is still working');
+            }, 30_000);
+
+            let response: Awaited<ReturnType<typeof sendChatMessage>>;
+            try {
+              response = await sendChatMessage(sessionKey, a2aContext);
+            } finally {
+              clearInterval(keepalive);
+            }
 
             // Log captured response
             if (response?.text) {
