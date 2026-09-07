@@ -107,7 +107,25 @@ function loadAgentSecrets(agentId: string): Record<string, string> | null {
 }
 
 function resolveA2AConfig(cfg: OpenClawConfig): A2AChannelConfig {
-  return cfg?.channels?.a2a ?? {};
+  const channels = cfg?.channels as Record<string, A2AChannelConfig> | undefined;
+  const current = channels?.gopherhole;
+  if (current) return current;
+
+  // Back-compat: this channel was `a2a` before v0.5.0. OpenClaw now ships its
+  // own stock `a2a` channel, so we moved to `gopherhole` to end the clash.
+  // Legacy config is still honoured, but only when the stock plugin is
+  // disabled -- otherwise its schema rejects channels.a2a before we load.
+  const legacy = channels?.a2a;
+  if (legacy) {
+    a2aLog.error(
+      'config_legacy_path',
+      'channels.a2a is deprecated -- rename it to channels.gopherhole. ' +
+        'Support for the old path will be removed in a future release.',
+      {},
+    );
+    return legacy;
+  }
+  return {};
 }
 
 function resolveA2AAccount(opts: {
@@ -129,20 +147,20 @@ function resolveA2AAccount(opts: {
 }
 
 const meta = {
-  id: 'a2a',
-  label: 'A2A',
-  selectionLabel: 'A2A (Agent-to-Agent)',
-  detailLabel: 'A2A Protocol',
-  docsPath: '/channels/a2a',
-  docsLabel: 'a2a',
+  id: 'gopherhole',
+  label: 'GopherHole',
+  selectionLabel: 'GopherHole (Agent-to-Agent)',
+  detailLabel: 'GopherHole A2A',
+  docsPath: '/channels/gopherhole',
+  docsLabel: 'gopherhole',
   blurb: 'Communicate with other AI agents via GopherHole A2A protocol.',
   systemImage: 'bubble.left.and.bubble.right',
-  aliases: ['agent2agent', 'gopherhole'],
+  aliases: ['agent2agent'],
   order: 200,
 };
 
 export const a2aPlugin: ChannelPlugin<ResolvedA2AAccount> = {
-  id: 'a2a',
+  id: 'gopherhole',
   meta,
   capabilities: {
     chatTypes: ['direct'],
@@ -152,7 +170,7 @@ export const a2aPlugin: ChannelPlugin<ResolvedA2AAccount> = {
     unsend: false,
     reply: false,
   },
-  reload: { configPrefixes: ['channels.a2a'] },
+  reload: { configPrefixes: ['channels.gopherhole'] },
   config: {
     listAccountIds: () => [DEFAULT_ACCOUNT_ID],
     resolveAccount: (cfg, accountId) =>
@@ -164,8 +182,8 @@ export const a2aPlugin: ChannelPlugin<ResolvedA2AAccount> = {
         ...next,
         channels: {
           ...next.channels,
-          a2a: {
-            ...(next.channels as Record<string, unknown>)?.a2a as object,
+          gopherhole: {
+            ...(next.channels as Record<string, unknown>)?.gopherhole as object,
             enabled,
           },
         },
@@ -186,8 +204,8 @@ export const a2aPlugin: ChannelPlugin<ResolvedA2AAccount> = {
     resolveDmPolicy: ({ account }) => ({
       policy: 'open',  // A2A connections are pre-configured, no pairing needed
       allowFrom: [],
-      policyPath: 'channels.a2a.dmPolicy',
-      allowFromPath: 'channels.a2a.',
+      policyPath: 'channels.gopherhole.dmPolicy',
+      allowFromPath: 'channels.gopherhole.',
       approveHint: '',
       normalizeEntry: (raw) => raw,
     }),
@@ -216,8 +234,8 @@ export const a2aPlugin: ChannelPlugin<ResolvedA2AAccount> = {
         ...next,
         channels: {
           ...next.channels,
-          a2a: {
-            ...(next.channels as Record<string, unknown>)?.a2a as object,
+          gopherhole: {
+            ...(next.channels as Record<string, unknown>)?.gopherhole as object,
             enabled: true,
             ...(input.httpUrl ? { bridgeUrl: input.httpUrl } : {}),
           },
@@ -240,20 +258,20 @@ export const a2aPlugin: ChannelPlugin<ResolvedA2AAccount> = {
     },
     sendText: async ({ to, text }) => {
       if (!connectionManager) {
-        return { channel: 'a2a', success: false, error: 'A2A not connected' };
+        return { channel: 'gopherhole', success: false, error: 'A2A not connected' };
       }
       try {
         const secrets = loadAgentSecrets(to) ?? undefined;
         const response = await connectionManager.sendMessage(to, text, secrets ? { secrets } : undefined);
         return {
-          channel: 'a2a',
+          channel: 'gopherhole',
           success: true,
           messageId: response.status,
           response: response.text,
         };
       } catch (err) {
         return {
-          channel: 'a2a',
+          channel: 'gopherhole',
           success: false,
           error: (err as Error).message,
         };
@@ -300,7 +318,7 @@ export const a2aPlugin: ChannelPlugin<ResolvedA2AAccount> = {
       const account = ctx.account;
       const config = account.config;
 
-      ctx.log?.info(`[a2a] Starting A2A channel`);
+      ctx.log?.info(`[gopherhole] Starting A2A channel`);
       ctx.setStatus({ accountId: account.accountId });
 
       const localConnection = new A2AConnectionManager(config);
@@ -334,7 +352,7 @@ export const a2aPlugin: ChannelPlugin<ResolvedA2AAccount> = {
           try {
             // Use chat.send to route the message through the agent
             // Session key format: agent:<agentId>:<channel>:<chatId>
-            const sessionKey = `agent:main:a2a:${message.from}`;
+            const sessionKey = `agent:main:gopherhole:${message.from}`;
             a2aLog.messageProcessing(message.taskId, sessionKey);
             
             // Add A2A context so the agent knows to relay its full response
@@ -401,7 +419,7 @@ export const a2aPlugin: ChannelPlugin<ResolvedA2AAccount> = {
         lastStartAt: Date.now(),
       });
 
-      ctx.log?.info(`[a2a] A2A channel started`);
+      ctx.log?.info(`[gopherhole] A2A channel started`);
 
       // OpenClaw's channel supervisor treats resolution of this promise as
       // "channel exited" and immediately schedules an auto-restart. Hold the
@@ -415,11 +433,11 @@ export const a2aPlugin: ChannelPlugin<ResolvedA2AAccount> = {
           signal.addEventListener('abort', () => resolve(), { once: true });
         });
       } finally {
-        ctx.log?.info(`[a2a] Stopping A2A channel`);
+        ctx.log?.info(`[gopherhole] Stopping A2A channel`);
         try {
           await localConnection.stop();
         } catch (err) {
-          ctx.log?.error?.(`[a2a] Error during stop: ${(err as Error).message}`);
+          ctx.log?.error?.(`[gopherhole] Error during stop: ${(err as Error).message}`);
         }
         if (connectionManager === localConnection) {
           connectionManager = null;

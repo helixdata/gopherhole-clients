@@ -45,7 +45,7 @@ export interface A2AResponse {
  * Example:
  * {
  *   "channels": {
- *     "a2a": {
+ *     "gopherhole": {
  *       "enabled": true,
  *       "bridgeUrl": "wss://hub.gopherhole.ai/ws",
  *       "apiKey": "gph_your_api_key"

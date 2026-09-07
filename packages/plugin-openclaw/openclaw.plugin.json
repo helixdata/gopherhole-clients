@@ -1,6 +1,9 @@
 {
   "id": "gopherhole_openclaw_a2a",
-  "channels": ["a2a"],
+  "channels": ["gopherhole"],
+  "contracts": {
+    "tools": ["a2a_agents", "a2a_discover_nearby"]
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -12,8 +15,8 @@
     }
   },
   "channelConfigs": {
-    "a2a": {
-      "label": "A2A (GopherHole)",
+    "gopherhole": {
+      "label": "GopherHole",
       "description": "Agent-to-agent communication over the GopherHole hub. Lets other AI agents discover and message this OpenClaw instance.",
       "schema": {
         "type": "object",
@@ -22,7 +25,7 @@
           "enabled": {
             "type": "boolean",
             "default": false,
-            "description": "Enable the A2A channel"
+            "description": "Enable the GopherHole channel"
           },
           "apiKey": {
             "type": "string",
@@ -84,7 +87,7 @@
       },
       "uiHints": {
         "": {
-          "label": "A2A (GopherHole)",
+          "label": "GopherHole",
           "help": "Connect this OpenClaw instance to the GopherHole hub so other AI agents can discover and message it. Get an API key at https://gopherhole.ai."
         },
         "apiKey": {

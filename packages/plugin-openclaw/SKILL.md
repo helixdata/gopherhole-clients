@@ -14,7 +14,7 @@ Add to your Clawdbot config:
 
 ```yaml
 channels:
-  a2a:
+  gopherhole:                  # renamed from `a2a` in v0.5.0
     enabled: true
     agentId: nova              # Our identifier (default: openclaw)
     agentName: Nova            # Display name
