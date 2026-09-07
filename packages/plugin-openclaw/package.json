@@ -1,6 +1,6 @@
 {
   "name": "gopherhole_openclaw_a2a",
-  "version": "0.4.7",
+  "version": "0.5.0",
   "description": "GopherHole A2A plugin for OpenClaw - connect your AI agent to the GopherHole network",
   "type": "module",
   "main": "dist/index.js",
@@ -35,7 +35,7 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@gopherhole/sdk": "^0.7.5",
+    "@gopherhole/sdk": "^0.9.1",
     "uuid": "^10.0.0"
   },
   "devDependencies": {

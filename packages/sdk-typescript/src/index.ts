@@ -595,6 +595,32 @@ export class GopherHole extends EventEmitter<EventMap> {
   }
 
   /**
+   * Publish a non-terminal status update for an incoming task.
+   * This keeps long-running A2A work observable without completing the task.
+   */
+  updateTaskStatus(taskId: string, state: 'working' | 'input-required', message?: string): void {
+    const status = { state, message, timestamp: new Date().toISOString() };
+
+    if (this.ws?.readyState === 1) {
+      this.ws.send(JSON.stringify({
+        type: 'task_response',
+        taskId,
+        status,
+        lastChunk: false,
+      }));
+      return;
+    }
+
+    this.rpc('task/respond', {
+      taskId,
+      status,
+      lastChunk: false,
+    }).catch((err) => {
+      this.emit('error', new Error(`Failed to update task ${taskId}: ${(err as Error).message}`));
+    });
+  }
+
+  /**
    * Respond with a failure to an incoming task
    */
   respondError(taskId: string, errorMessage: string): void {

@@ -24,6 +24,7 @@ interface PendingChat {
   reject: (error: Error) => void;
   timeout: NodeJS.Timeout;
   latestText: string;  // Each delta is the full message so far, not incremental
+  timeoutMs: number;
 }
 
 let ws: WebSocket | null = null;
@@ -36,6 +37,15 @@ let handshakeComplete = false;
 // protocol bump fails a focused compatibility test instead of silently
 // breaking inbound A2A replies at runtime.
 export const GATEWAY_PROTOCOL_VERSION = 4;
+export const CHAT_INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000;
+
+function refreshChatTimeout(runId: string, pending: PendingChat): void {
+  clearTimeout(pending.timeout);
+  pending.timeout = setTimeout(() => {
+    pendingChats.delete(runId);
+    pending.reject(new Error('Chat response inactivity timeout'));
+  }, pending.timeoutMs);
+}
 
 function getGatewayToken(): string | null {
   // Try the current OpenClaw config location first, then the legacy
@@ -86,7 +96,7 @@ export async function connectToGateway(port = 18789): Promise<void> {
           client: {
             id: 'gateway-client',
             displayName: 'A2A Channel Plugin',
-            version: '0.4.7',
+            version: '0.4.8',
             platform: process.platform,
             mode: 'backend',
           },
@@ -216,6 +226,10 @@ function handleChatEvent(payload: {
     return;
   }
 
+  // Any chat event proves the OpenClaw run is alive. Treat the timeout as an
+  // inactivity deadline rather than a fixed whole-task deadline.
+  refreshChatTimeout(payload.runId, pending);
+
   // Detailed logging for debugging relay issues
   console.log(`[a2a] Chat event: runId=${payload.runId}, state=${payload.state}, seq=${payload.seq}, role=${payload.message?.role}`);
   
@@ -291,7 +305,7 @@ export async function callGateway(method: string, params: Record<string, unknown
 export async function sendChatMessage(
   sessionKey: string, 
   message: string,
-  timeoutMs = 300000
+  timeoutMs = CHAT_INACTIVITY_TIMEOUT_MS
 ): Promise<{ text: string }> {
   if (!ws || !connected || !handshakeComplete) {
     await connectToGateway();
@@ -316,17 +330,15 @@ export async function sendChatMessage(
 
   // Now wait for chat events to complete
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      pendingChats.delete(result.runId);
-      reject(new Error('Chat response timeout'));
-    }, timeoutMs);
-
-    pendingChats.set(result.runId, {
+    const pending: PendingChat = {
       resolve,
       reject,
-      timeout,
+      timeout: undefined as unknown as NodeJS.Timeout,
       latestText: '',
-    });
+      timeoutMs,
+    };
+    pendingChats.set(result.runId, pending);
+    refreshChatTimeout(result.runId, pending);
   });
 }
 

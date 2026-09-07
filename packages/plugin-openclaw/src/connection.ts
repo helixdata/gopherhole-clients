@@ -337,6 +337,17 @@ export class A2AConnectionManager {
     }
   }
 
+  sendTaskStatusViaGopherHole(taskId: string, message?: string): void {
+    if (!this.gopherhole || !this.connected || !taskId || taskId.startsWith('gph-')) {
+      return;
+    }
+    try {
+      this.gopherhole.updateTaskStatus(taskId, 'working', message);
+    } catch (err) {
+      console.error('[a2a] Failed to publish task status:', (err as Error).message);
+    }
+  }
+
   /**
    * Legacy alias for sendPartsViaGopherHole with text-only
    */

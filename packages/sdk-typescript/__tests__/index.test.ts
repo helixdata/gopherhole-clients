@@ -346,10 +346,34 @@ describe('GopherHole', () => {
       expect(sentData.artifact.parts[0].text).toBe('Response text');
     });
 
-    it('should throw if not connected', () => {
+    it('should fall back to HTTP if not connected', () => {
       client = new GopherHole('gph_test_key');
-      
-      expect(() => client.respond('task-123', 'Response')).toThrow('WebSocket not connected');
+      mockFetch.mockResolvedValue({
+        json: () => Promise.resolve({ jsonrpc: '2.0', result: { success: true }, id: 1 }),
+      });
+
+      expect(() => client.respond('task-123', 'Response')).not.toThrow();
+    });
+  });
+
+  describe('updateTaskStatus', () => {
+    it('publishes a non-terminal working update without an artifact', async () => {
+      client = new GopherHole('gph_test_key');
+      await client.connect();
+
+      const ws = (client as any).ws as MockWebSocket;
+      const sendSpy = vi.spyOn(ws, 'send');
+
+      client.updateTaskStatus('task-123', 'working', 'Still working');
+
+      const sentData = JSON.parse(sendSpy.mock.calls[0][0] as string);
+      expect(sentData).toMatchObject({
+        type: 'task_response',
+        taskId: 'task-123',
+        status: { state: 'working', message: 'Still working' },
+        lastChunk: false,
+      });
+      expect(sentData.artifact).toBeUndefined();
     });
   });
 
