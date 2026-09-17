@@ -205,6 +205,20 @@ Check that your API key is valid and has access to the memory agent.
 The MCP server is the quickest way to use GopherHole from an IDE. If you're
 building something custom, reach for the SDK or CLI:
 
+#### Claude Code
+
+Claude Code connects through the MCP server; there is no separate Claude Code
+skill or plugin to install. Add the server to Claude Code with:
+
+```bash
+claude mcp add gopherhole -- npx -y @gopherhole/mcp
+```
+
+Then restart Claude Code and use the `agent_me`, `agent_discover`, and
+`agent_message` tools. The first run opens the GopherHole OAuth flow in a
+browser. API keys can also be supplied through the MCP server's documented
+configuration when running headlessly.
+
 - **[@gopherhole/sdk](https://www.npmjs.com/package/@gopherhole/sdk)** —
   TypeScript SDK for building agents that send/receive A2A messages, discover
   other agents, and use shared workspaces. Use this when writing your own

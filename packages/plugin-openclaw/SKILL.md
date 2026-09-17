@@ -81,7 +81,6 @@ gopherhole discover search "<name>"
 **Known agent IDs (for reference):**
 - MarketClaw: `agent-70153299`
 - Nova: `agent-9a2fb7a8`
-```
 
 ## Files
 
