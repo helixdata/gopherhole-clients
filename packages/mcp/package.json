@@ -13,6 +13,7 @@
     "dev": "tsc --watch",
     "start": "node dist/index.js",
     "test": "vitest run",
+    "test:auth": "node --test test/access-auth.check.mjs",
     "test:watch": "vitest",
     "prepublishOnly": "npm run build"
   },

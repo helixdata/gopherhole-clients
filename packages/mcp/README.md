@@ -18,9 +18,12 @@ You in Cursor: "Remember that the API uses OAuth 2.0"
 
 ## Quick Start
 
-### 1. Get a GopherHole API Key
+### 1. Choose Browser Setup or an API Key
 
-Sign up at [gopherhole.ai](https://gopherhole.ai) and create an API key.
+For interactive setup, omit `GOPHERHOLE_API_KEY`. The first tool call opens
+GopherHole in your browser, verifies your email, and provisions an IDE agent.
+For headless use, create an API key in the [GopherHole dashboard](https://gopherhole.ai)
+and supply it as shown below.
 
 ### 2. Configure Your IDE
 
@@ -119,11 +122,65 @@ gopherhole-mcp --version   # print version
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `GOPHERHOLE_API_KEY` | Yes | — | Your GopherHole API key (starts with `gph_`) |
+| `GOPHERHOLE_API_KEY` | No | Saved key or browser setup | Your GopherHole API key (starts with `gph_`); required for unattended first-time setup |
 | `GOPHERHOLE_TRANSPORT` | No | `http` | Transport mode: `http` or `ws` |
 | `GOPHERHOLE_API_URL` | No | `https://hub.gopherhole.ai` | A2A hub base URL |
-| `GOPHERHOLE_APP_URL` | No | `https://gopherhole.ai` | App base URL (used by `agent_me`) |
+| `GOPHERHOLE_APP_URL` | No | `https://gopherhole.ai` | App/OAuth issuer base URL; HTTPS required except loopback development |
 | `GOPHERHOLE_MEMORY_AGENT` | No | `agent-memory-official` | Memory agent ID for memory tools |
+
+## Native OAuth and Migration
+
+This package is a **stdio MCP server**. It continues to use the supplied or saved
+API key for tool traffic. Its browser flow is a native OAuth bootstrap, separate
+from the hosted `/mcp` connector used by remote MCP clients.
+
+On each browser authorization:
+
+1. Discover the configured issuer's OAuth metadata and require S256 PKCE and
+   authorization-response issuer support. Discovery endpoints must use the same
+   origin as `GOPHERHOLE_APP_URL`; HTTP redirects are not followed.
+2. Bind an ephemeral listener on `127.0.0.1`, then dynamically register that exact
+   `/callback` URI and port with `token_endpoint_auth_method: none`.
+3. Use the returned client ID, S256 challenge, random state, and the
+   `${GOPHERHOLE_APP_URL}/api` resource in the authorization request. The callback
+   must include the matching state and issuer (`iss`).
+4. Exchange the code with the same client ID, redirect URI, PKCE verifier, and
+   resource. Validate the returned Bearer token, expiry, scope, and resource before
+   using it. Close the listener and clear its timeout on success or failure.
+
+Initial setup requests only `agent:create`. Admin tools open a separate consent
+flow requesting `admin`, which requires an owner/admin account. Admin
+reauthorization does not provision an agent or replace its API key. Admin tokens
+are cached with their expiry, issuer, resource, scope, and issued client ID; they are never reused
+for another configured app.
+
+Existing saved API keys still work. Legacy unbound OAuth tokens are not reused;
+the next admin operation starts the new authorization flow. Upgrade the backend
+alongside this client: older servers without persisted dynamic registrations,
+issuer responses, or `/api` resource binding are intentionally rejected. The
+client does not fall back to a fabricated client ID or unbound tokens.
+
+The management-authentication restriction on `agent_request_access` remains in
+place: it returns signed-in-dashboard guidance before starting any authentication
+flow. An origin-bound admin token still does not prove the active agent's tenant
+or requester identity, so this tool never borrows one or requests admin consent.
+
+Existing API-key permissions are preserved. Workspace tools still require the
+explicit `workspace:read` / `workspace:write` scopes and membership/role checks
+enforced by the server. A denied operation returns the server's error; the client
+does not retry with admin authority, replace the key, or expand its scopes.
+Native setup uses the `/api` audience and `agent:create` scope; a hosted read-only
+connection's `mcp:read` token is not a native bootstrap or admin credential.
+
+Credentials are stored in `~/.config/gopherhole/mcp-credentials.json`. Browser
+setup has a five-minute callback timeout and 15-second network timeouts. If the
+browser cannot be launched, open the printed authorization URL manually. For
+unattended environments, set `GOPHERHOLE_API_KEY` instead.
+
+Protocol references: [MCP authorization](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization),
+[RFC 7591 dynamic registration](https://www.rfc-editor.org/rfc/rfc7591),
+[RFC 8707 resource indicators](https://www.rfc-editor.org/rfc/rfc8707), and
+[RFC 9207 issuer validation](https://www.rfc-editor.org/rfc/rfc9207).
 
 ## Local Development
 
@@ -133,8 +190,10 @@ git clone https://github.com/helixdata/gopherhole-clients.git
 cd gopherhole-clients/packages/mcp
 npm install
 
-# Build
+# Build and run local protocol regression tests
 npm run build
+npm test
+npm run test:auth
 
 # Test tools/list
 echo '{"jsonrpc":"2.0","method":"tools/list","id":1}' | GOPHERHOLE_API_KEY=gph_xxx node dist/index.js
