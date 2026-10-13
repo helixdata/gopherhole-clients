@@ -5,39 +5,43 @@ interface AdminContext {
   apiUrl: string;
 }
 
-let adminToken: string | null = null;
-let adminAuthInProgress = false;
+const adminTokens = new Map<string, { accessToken: string; expiresAt: string }>();
+const adminAuthInProgress = new Set<string>();
+const rejectedAdminTokens = new Map<string, string>();
 
 export async function ensureAdminToken(ctx: AdminContext): Promise<string> {
-  if (adminToken) return adminToken;
+  const key = ctx.appUrl.replace(/\/+$/, '');
+  const cached = adminTokens.get(key);
+  if (cached && Date.parse(cached.expiresAt) > Date.now()) return cached.accessToken;
+  adminTokens.delete(key);
 
-  const stored = loadStoredAccessToken();
-  if (stored) {
-    adminToken = stored;
-    return stored;
-  }
+  const stored = loadStoredAccessToken(ctx.appUrl);
+  if (stored && stored !== rejectedAdminTokens.get(key)) return stored;
 
-  if (!adminAuthInProgress) {
-    adminAuthInProgress = true;
-    refreshAdminToken(ctx.appUrl).then(({ accessToken }) => {
-      adminToken = accessToken;
-      adminAuthInProgress = false;
+  if (!adminAuthInProgress.has(key)) {
+    adminAuthInProgress.add(key);
+    refreshAdminToken(ctx.appUrl).then(result => {
+      adminTokens.set(key, result);
+      rejectedAdminTokens.delete(key);
       console.error('  GopherHole: Admin token refreshed. Admin tools are now available.');
-    }).catch(() => {
-      adminAuthInProgress = false;
+    }).catch((err: unknown) => {
+      console.error(`  GopherHole: Admin authorization failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }).finally(() => {
+      adminAuthInProgress.delete(key);
     });
   }
 
   throw new Error(
-    'Admin session expired. A browser window has been opened to re-authenticate — please complete email verification, then retry this tool call.'
+    'Admin authorization is required. Follow the browser prompt (or the URL in the server log), complete email verification with an owner or admin account, then retry this tool call.'
   );
 }
 
 async function adminFetch(ctx: AdminContext, path: string, opts: RequestInit = {}): Promise<any> {
   const token = await ensureAdminToken(ctx);
-  const url = `${ctx.appUrl}${path}`;
+  const url = `${ctx.appUrl.replace(/\/+$/, '')}${path}`;
   const res = await fetch(url, {
     ...opts,
+    redirect: 'error',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
@@ -46,7 +50,9 @@ async function adminFetch(ctx: AdminContext, path: string, opts: RequestInit = {
   });
 
   if (res.status === 401) {
-    adminToken = null;
+    const key = ctx.appUrl.replace(/\/+$/, '');
+    adminTokens.delete(key);
+    rejectedAdminTokens.set(key, token);
     throw new Error('Admin session expired. Please retry — a browser window will open to re-authenticate.');
   }
 

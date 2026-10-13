@@ -18,7 +18,7 @@ import { join } from 'node:path';
 import { GopherHole, TransportMode, getTaskResponseText } from '@gopherhole/sdk';
 import type { MemoryType } from '@gopherhole/sdk';
 import { ALL_TOOLS } from './tools.js';
-import { loadStoredApiKey, loadStoredAccessToken, bootstrapAuth } from './auth.js';
+import { loadStoredApiKey, bootstrapAuth } from './auth.js';
 import { handleAdminTool } from './admin.js';
 
 const VERSION = '0.10.0';
@@ -195,6 +195,16 @@ async function main() {
   // Handle tools/call
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
+
+    // Access requests are tenant management operations. The stored admin
+    // token is origin-bound but not tied to the active API key/requester tenant.
+    // Do not borrow it or start OAuth/provisioning for this agent tool.
+    if (name === 'agent_request_access') {
+      return {
+        content: [{ type: 'text', text: 'Error: agent_request_access requires a verified management session for the requesting tenant. Agent API keys cannot authorize this operation. Use the signed-in GopherHole dashboard to request access; this MCP tool is unavailable until tenant-bound management authentication is supported.' }],
+        isError: true,
+      };
+    }
 
     // Route admin_* tools to the admin handler (uses OAuth access token)
     if (name.startsWith('admin_')) {
@@ -608,44 +618,6 @@ async function main() {
               isError: true,
             };
           }
-        }
-
-        case 'agent_request_access': {
-          const targetAgentId = args?.agentId as string;
-          if (!targetAgentId) {
-            return {
-              content: [{ type: 'text', text: 'Error: agentId is required' }],
-              isError: true,
-            };
-          }
-          const scopes = (args?.scopes as string[]) || ['messages:send'];
-          const reason = args?.reason as string | undefined;
-
-          const res = await fetch(`${appUrl}/api/access/request`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${apiKey}`,
-            },
-            body: JSON.stringify({ targetAgentId, scopes, reason }),
-          });
-
-          if (!res.ok) {
-            const err = await res.json().catch(() => ({})) as { error?: string };
-            return {
-              content: [{ type: 'text', text: `Error: ${(err as any).error || res.statusText}` }],
-              isError: true,
-            };
-          }
-
-          const data = await res.json() as { grant: { id: string; status: string } };
-          const statusMsg = data.grant.status === 'approved'
-            ? `Access granted immediately (auto-approved). You can now message \`${targetAgentId}\`.`
-            : `Access request submitted (pending manual approval by the target tenant).`;
-
-          return {
-            content: [{ type: 'text', text: `${statusMsg}\n\nGrant ID: \`${data.grant.id}\`\nStatus: ${data.grant.status}` }],
-          };
         }
 
         case 'agent_discover_nearby': {
