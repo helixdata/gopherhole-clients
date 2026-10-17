@@ -21,7 +21,7 @@ import { ALL_TOOLS } from './tools.js';
 import { loadStoredApiKey, bootstrapAuth } from './auth.js';
 import { handleAdminTool } from './admin.js';
 
-const VERSION = '0.10.0';
+const VERSION = '0.11.1';
 
 // Default memory agent ID (can be overridden via env)
 const MEMORY_AGENT_ID = process.env.GOPHERHOLE_MEMORY_AGENT || 'agent-memory-official';
